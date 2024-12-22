@@ -2,6 +2,9 @@
 
 #include <stdexcept>
 
+#include "lea_timer.hpp"
+
+
 namespace {
     constexpr auto class_name = TEXT("WINCLASS1");
 
@@ -9,37 +12,87 @@ namespace {
 
     HWND mainWindowHandle;
 
-    LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+    lea::LeaWindow *gwnd = 0;
+
+    LRESULT CALLBACK WndProc(::HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
-        // TODO: messages handle
-
-        switch (message)
-        {
-        case WM_ACTIVATE: {
-            return 0;
-        } break;
-        case WM_CLOSE: {
-            int result = MessageBox(hWnd,
-                TEXT("Are you sure that you want to close the window?"),
-                TEXT("Close?"), MB_YESNO | MB_ICONQUESTION);
-
-            return result == IDYES ? DefWindowProc(hWnd, message, wParam, lParam) : 0;
-        } break;
-        case WM_DESTROY: {
-            PostQuitMessage(0);
-            return 0;
-        } break;
-        default: break;
-        }
-        return DefWindowProc(hWnd, message, wParam, lParam);
+        return gwnd->MsgProc(hWnd, message, wParam, lParam);
     }
+}
 
+LRESULT lea::LeaWindow::MsgProc(::HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    // TODO: messages handle
+    PAINTSTRUCT ps;
+    HDC hdc;
+
+    switch (message)
+    {
+    case WM_ACTIVATE: {
+        if (LOWORD(wParam) == WA_INACTIVE)
+        {
+            isActive_ = false;
+            TIMER.Stop();
+        }
+        else
+        {
+            isActive_ = true;
+            TIMER.Start();
+        }
+        return 0;
+    } break;
+    case WM_ENTERSIZEMOVE: {
+        isActive_ = false;
+        TIMER.Stop();
+        return 0;
+    } break;
+    case WM_EXITSIZEMOVE: {
+        isActive_ = true;
+        TIMER.Start();
+        return 0;
+    } break;
+    case WM_PAINT: {
+        hdc = BeginPaint(hWnd, &ps);
+        EndPaint(hWnd, &ps);
+        return 0;
+    } break;
+    case WM_CLOSE: {
+        int result = MessageBox(hWnd,
+            TEXT("Are you sure that you want to close the window?"),
+            TEXT("Close?"), MB_YESNO | MB_ICONQUESTION);
+
+        return result == IDYES ? DefWindowProc(hWnd, message, wParam, lParam) : 0;
+    } break;
+    case WM_DESTROY: {
+        PostQuitMessage(0);
+        return 0;
+    } break;
+    default: break;
+    }
+    return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
 lea::LeaWindow::LeaWindow(HINSTANCE hInstance, int width, int height)
-    : hinstance_(hInstance), width_(width), height_(height)
+    : hinstance_(hInstance)
 {
-    LeaCreateWindow();
+    gwnd = this;
+    LeaCreateWindow(width, height);
+}
+
+int lea::LeaWindow::Width() const
+{
+    RECT rc;
+    GetClientRect(hwnd_, &rc);
+
+    return rc.right - rc.left;
+}
+
+int lea::LeaWindow::Height() const
+{
+    RECT rc;
+    GetClientRect(hwnd_, &rc);
+
+    return rc.bottom - rc.top;
 }
 
 bool lea::LeaWindow::ShouldClose()
@@ -58,7 +111,12 @@ bool lea::LeaWindow::ShouldClose()
     return true;
 }
 
-void lea::LeaWindow::LeaCreateWindow()
+void lea::LeaWindow::SetTitle(std::wstring_view title)
+{
+    SetWindowText(hwnd_, title.data());
+}
+
+void lea::LeaWindow::LeaCreateWindow(int width, int height)
 {
     WNDCLASSEX winclass{
         sizeof(WNDCLASSEX),
@@ -80,14 +138,19 @@ void lea::LeaWindow::LeaCreateWindow()
     if (!RegisterClassExW(&winclass))
         throw std::runtime_error("Failed to register window");
 
-    if (!(hwnd_ = CreateWindowExW(
-        0, class_name, TEXT("Direct X Learning"),
-        WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, width_, height_,
-        nullptr, nullptr, hinstance_, nullptr
+
+    RECT rc = { 0, 0, width, height };
+    AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
+    if (!(hwnd_ = CreateWindowExW(0, class_name, L"Direct3D 11 Tutorial 2: Rendering a Triangle",
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+        CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top, nullptr, nullptr, hinstance_,
+        nullptr
     )))
     {
         throw std::runtime_error("Failed to create window");
     }
     
+    ShowWindow(hwnd_, 10);
+
     mainWindowHandle = hwnd_;
 }

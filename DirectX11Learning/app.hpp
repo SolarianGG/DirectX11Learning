@@ -10,6 +10,7 @@ namespace lea {
 		LeaWindow window_;
 		LeaDevice device_;
 
+		bool isAppPaused_ = false;
 	public:
 		static inline constexpr auto WIDTH = 800;
 		static inline constexpr auto HEIGHT = 600;
@@ -22,5 +23,12 @@ namespace lea {
 		App& operator=(App&& other) noexcept = delete;
 		~App();
 		void Run();
+
+	private:
+		void CalculateFrameStats();
+
+		void UpdateScene(float deltaTime);
+
+		void DrawScene();
 	};
 }

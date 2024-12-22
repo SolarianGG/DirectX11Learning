@@ -1,8 +1,5 @@
 #pragma once
 
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "dxgi.lib")
-
 #include <d3d11_1.h>
 #include <wrl/client.h>
 
@@ -33,6 +30,8 @@ namespace lea {
 	public:
 		LeaDevice(LeaWindow& window);
 
+		void Draw();
+
 		void Clean();
 	private:
 		void InitDevice();
@@ -46,5 +45,7 @@ namespace lea {
 		void CreateDepthStencil();
 
 		void BindRenderTargets();
+
+		void SetupViewport();
 	};
 }

@@ -137,6 +137,7 @@
   <ItemGroup>
     <ClCompile Include="app.cpp" />
     <ClCompile Include="lea_engine_device.cpp" />
+    <ClCompile Include="lea_timer.cpp" />
     <ClCompile Include="lea_window.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
@@ -146,6 +147,7 @@
   <ItemGroup>
     <ClInclude Include="app.hpp" />
     <ClInclude Include="DXHelper.hpp" />
+    <ClInclude Include="lea_timer.hpp" />
     <ClInclude Include="lea_engine_device.hpp" />
     <ClInclude Include="lea_window.hpp" />
   </ItemGroup>
