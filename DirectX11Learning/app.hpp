@@ -5,30 +5,35 @@
 
 namespace lea {
 
-
 	class App {
-		LeaWindow window_;
-		LeaDevice device_;
-
-		bool isAppPaused_ = false;
+		
 	public:
-		static inline constexpr auto WIDTH = 800;
-		static inline constexpr auto HEIGHT = 600;
+		static inline constexpr auto WIDTH = 1024;
+		static inline constexpr auto HEIGHT = 768;
 
-		App(HINSTANCE hInstance);
+		App();
 		App(const App& other) = delete;
 		App& operator=(const App& other) = delete;
 
 		App(App&& other) noexcept = delete;
 		App& operator=(App&& other) noexcept = delete;
-		~App();
+		virtual ~App();
 		void Run();
 
-	private:
+	protected:
+		LeaWindow window_;
+		LeaDevice device_;
+
+		bool isAppPaused_ = false;
+
+		virtual void Init() = 0;
+
 		void CalculateFrameStats();
 
-		void UpdateScene(float deltaTime);
+		virtual void PollEvents() = 0;
 
-		void DrawScene();
+		virtual void UpdateScene(float deltaTime) = 0;
+
+		virtual void DrawScene() = 0;
 	};
 }

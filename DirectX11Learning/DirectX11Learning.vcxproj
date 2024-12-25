@@ -71,10 +71,12 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\vcpkg\installed\x64-windows\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\vcpkg\installed\x64-windows\include;C:\Users\margaryta\Desktop\ComputerGraphicsExamples\DirectX11Learning\packages\Effects;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\margaryta\Desktop\ComputerGraphicsExamples\DirectX11Learning\DirectX11Learning;C:\Users\margaryta\Desktop\ComputerGraphicsExamples\DirectX11Learning\packages\Effects;C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22621.0\um\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\vcpkg\installed\x64-windows\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\vcpkg\installed\x64-windows\include;C:\Users\margaryta\Desktop\ComputerGraphicsExamples\DirectX11Learning\packages\Effects;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\margaryta\Desktop\ComputerGraphicsExamples\DirectX11Learning\DirectX11Learning;C:\Users\margaryta\Desktop\ComputerGraphicsExamples\DirectX11Learning\packages\Effects;C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.22621.0\um\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -116,6 +118,9 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <FxCompile>
+      <ShaderModel>5.0</ShaderModel>
+    </FxCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -133,13 +138,19 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <FxCompile>
+      <ShaderModel>5.0</ShaderModel>
+    </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="app.cpp" />
+    <ClCompile Include="DXHelper.cpp" />
     <ClCompile Include="lea_engine_device.cpp" />
+    <ClCompile Include="lea_engine_utils.hpp" />
     <ClCompile Include="lea_timer.cpp" />
     <ClCompile Include="lea_window.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="triangle_app.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -150,6 +161,15 @@
     <ClInclude Include="lea_timer.hpp" />
     <ClInclude Include="lea_engine_device.hpp" />
     <ClInclude Include="lea_window.hpp" />
+    <ClInclude Include="triangle_app.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="simple_shader.fx">
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VS</EntryPointName>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">VS</EntryPointName>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

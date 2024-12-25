@@ -4,10 +4,12 @@
 
 #include <sstream>
 
-lea::App::App(HINSTANCE hInstance)
-	: window_(hInstance, WIDTH, HEIGHT), device_(window_)
-{
+#include <string>
+#include <DirectXMath.h>
 
+lea::App::App()
+	: window_(WIDTH, HEIGHT), device_(window_)
+{
 }
 
 lea::App::~App()
@@ -40,27 +42,18 @@ void lea::App::CalculateFrameStats()
 	}
 }
 
-void lea::App::UpdateScene(float deltaTime)
-{
-
-}
-
-void lea::App::DrawScene()
-{
-	device_.Draw();
-}
-
 void lea::App::Run()
 {
-	TIMER.Reset();
+	Init();
 
+	TIMER.Reset();
 	while (!window_.ShouldClose())
 	{
 		TIMER.Tick();
 		if (!isAppPaused_ && window_.IsActive())
 		{
 			CalculateFrameStats();
-			// TODO: Poll Events
+			PollEvents();
 			UpdateScene(TIMER.DeltaTime());
 			DrawScene();
 		}

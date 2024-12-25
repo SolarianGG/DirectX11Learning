@@ -1,10 +1,10 @@
-#include "app.hpp"
-
 #include <stdexcept>
 #include <iostream>
 #include <cstdlib>
 
+#include <memory>
 
+#include "triangle_app.hpp"
 
 int WINAPI wWinMain(
     _In_ HINSTANCE hInstance,
@@ -12,9 +12,9 @@ int WINAPI wWinMain(
     _In_ LPWSTR lpCmdLine,
     _In_ int nShowCmd)
 {
-    lea::App app{ hInstance };
+    std::unique_ptr<lea::App> app = std::make_unique<lea::TriangleApp>();
     try {
-        app.Run();
+        app->Run();
     }
     catch (std::exception& e) {
         std::cout << e.what() << std::endl;

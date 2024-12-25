@@ -2,15 +2,19 @@
 
 #include <stdexcept>
 #include <cassert>
+#include <iostream>
+#include <string>
 
-#include <SimpleMath.h>
+#include <d3dcompiler.h>
+#include <DirectXColors.h>
 
 #include "DXHelper.hpp"
-
-
+#include "lea_timer.hpp"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "Effects11d.lib")
 
 using Microsoft::WRL::ComPtr;
 
@@ -30,6 +34,7 @@ lea::LeaDevice::LeaDevice(LeaWindow& window)
 
 void lea::LeaDevice::Clean()
 {
+
     if (context_)
     {
         context_->ClearState();
@@ -37,9 +42,89 @@ void lea::LeaDevice::Clean()
     }
 }
 
+std::vector<ComPtr<IDXGIAdapter>> lea::LeaDevice::GetAdapters()
+{
+    ComPtr<IDXGIFactory> pFactory = nullptr;
+
+    DX::ThrowIfFailed(CreateDXGIFactory(__uuidof(IDXGIFactory), reinterpret_cast<void**>(pFactory.GetAddressOf())));
+    std::vector<ComPtr<IDXGIAdapter>> vAdapters;
+    UINT i = 0;
+    ComPtr<IDXGIAdapter> pAdapter;
+    while (pFactory->EnumAdapters(i, pAdapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND)
+    {
+        vAdapters.push_back(std::move(pAdapter));
+        ++i;
+    }
+    return vAdapters;
+}
+
+void lea::LeaDevice::PrintInfoAboutAdapters(const std::vector<ComPtr<IDXGIAdapter>>& vAdapters)
+{
+    for (const auto& adapter : vAdapters)
+    {
+        DXGI_ADAPTER_DESC adapterDesc{};
+        DX::ThrowIfFailed(adapter->GetDesc(&adapterDesc));
+
+        std::wstring info;
+        info += L"Adaptor name: " + std::wstring(adapterDesc.Description) + L"\n";
+        info += L"VRAM: " + std::to_wstring(adapterDesc.DedicatedVideoMemory / (1024 * 1024)) + L" MB\n";
+        info += L"System memory: " + std::to_wstring(adapterDesc.DedicatedSystemMemory / (1024 * 1024)) + L" MB\n";
+        info += L"Common memory: " + std::to_wstring(adapterDesc.SharedSystemMemory / (1024 * 1024)) + L" MB\n";
+        info += L"ID of device: " + std::to_wstring(adapterDesc.DeviceId) + L"\n";
+        info += L"vendor ID: " + std::to_wstring(adapterDesc.VendorId) + L"\n";
+        info += L"UUID: " + std::to_wstring(adapterDesc.AdapterLuid.LowPart) + L"-" + std::to_wstring(adapterDesc.AdapterLuid.HighPart) + L"\n";
+
+        UINT i = 0;
+        ComPtr<IDXGIOutput> pOutput;
+        while (adapter->EnumOutputs(i, pOutput.GetAddressOf()) != DXGI_ERROR_NOT_FOUND)
+        {
+            DXGI_OUTPUT_DESC outputDesc{};
+            pOutput->GetDesc(&outputDesc);
+
+            info += L"Device name: " + std::wstring(outputDesc.DeviceName) + L"\n";
+            info += L"Rotation: " + std::to_wstring(outputDesc.Rotation) + L"\n";
+            info += L"Attached to desktop: " + std::to_wstring(outputDesc.AttachedToDesktop) + L"\n";
+            info += L"Desktop Coordinates: " +
+                std::to_wstring(outputDesc.DesktopCoordinates.left) + L" " +
+                std::to_wstring(outputDesc.DesktopCoordinates.right) + L" " +
+                std::to_wstring(outputDesc.DesktopCoordinates.top) + L" " +
+                std::to_wstring(outputDesc.DesktopCoordinates.bottom) + L"\n";
+
+            UINT numModes = 0;
+            DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+            DX::ThrowIfFailed(pOutput->GetDisplayModeList(format, 0, &numModes, nullptr));
+            if (numModes > 0)
+            {
+                std::vector<DXGI_MODE_DESC> modeList(numModes);
+                DX::ThrowIfFailed(pOutput->GetDisplayModeList(format, 0, &numModes, modeList.data()));
+
+                info += L"Supported Display Modes:\n";
+                for (const auto& mode : modeList)
+                {
+                    info += L"  Resolution: " + std::to_wstring(mode.Width) + L"x" + std::to_wstring(mode.Height) +
+                        L", Refresh Rate: " + std::to_wstring(mode.RefreshRate.Numerator / mode.RefreshRate.Denominator) + L" Hz\n";
+                }
+            }
+            else
+            {
+                info += L"No display modes found for DXGI_FORMAT_R8G8B8A8_UNORM.\n";
+            }
+
+            ++i;
+        }
+        OutputDebugString(info.c_str());
+    }
+}
+
 void lea::LeaDevice::InitDevice()
 {
     // DirectX
+    auto vAdapters = GetAdapters();
+   
+#if defined(DEBUG) || defined(_DEBUG)
+    PrintInfoAboutAdapters(vAdapters);
+#endif
 
     UINT createDeviceFlags = D3D11_CREATE_DEVICE_SINGLETHREADED;
 
@@ -49,6 +134,7 @@ void lea::LeaDevice::InitDevice()
     createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
+    // vAdapters[1].Get() && D3D_DRIVER_TYPE_UNKNOWN for nvidia card
     DX::ThrowIfFailed(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
         createDeviceFlags, &featureLevels, 1,
         D3D11_SDK_VERSION, device_.GetAddressOf(), &featureLevel, context_.GetAddressOf()));
@@ -101,10 +187,10 @@ void lea::LeaDevice::CreateSwapChain()
     assert(dxgiFactory.Get() != nullptr);
     DX::ThrowIfFailed(dxgiFactory->CreateSwapChain(device_.Get(), &sd, swapChain_.GetAddressOf()));
 
+    DX::ThrowIfFailed(dxgiFactory->MakeWindowAssociation(window_.HWND(), DXGI_MWA_NO_WINDOW_CHANGES));
     DX::ThrowIfFailed(dxgiFactory->MakeWindowAssociation(window_.HWND(), DXGI_MWA_NO_ALT_ENTER));
 }
 
-// NOTE: PRACTICE USING DEBUGGER | ASK ChatGPT
 void lea::LeaDevice::CreateDebugger()
 {
     DX::ThrowIfFailed(device_->QueryInterface(__uuidof(ID3D11Debug), reinterpret_cast<void**>(debugger_.GetAddressOf())));
@@ -122,7 +208,6 @@ void lea::LeaDevice::CreateRenderTargetView()
 
 void lea::LeaDevice::CreateDepthStencil()
 {
-    
     D3D11_TEXTURE2D_DESC depthStencilDesc{};
     depthStencilDesc.Width = window_.Width();
     depthStencilDesc.Height = window_.Height();
@@ -165,14 +250,37 @@ inline void lea::LeaDevice::SetupViewport()
     vp.MinDepth = 0.f;
     vp.MaxDepth = 1.f;
     context_->RSSetViewports(1, &vp);
+
+    debugger_->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
 }
 
-void lea::LeaDevice::Draw()
+ID3DX11Effect* lea::LeaDevice::CreateEffect(const WCHAR* szFileName)
 {
-    context_->ClearRenderTargetView(renderTargetView_.Get(),
-        reinterpret_cast<const float*>(&DX::Color::Green));
-    context_->ClearDepthStencilView(depthStencilView_.Get(),
-        D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+    DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined(DEBUG) || defined(_DEBUG)
 
-    DX::ThrowIfFailed(swapChain_->Present(0, 0));
+    dwShaderFlags |= D3DCOMPILE_DEBUG;
+
+    dwShaderFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
+
+    ComPtr<ID3DBlob> pErrorBlob;
+    ComPtr<ID3DBlob> ppBlobout;
+    HRESULT hr = D3DCompileFromFile(szFileName, nullptr, nullptr, 0, "fx_5_0",
+        dwShaderFlags, 0, ppBlobout.GetAddressOf(), pErrorBlob.GetAddressOf());
+    if (FAILED(hr))
+    {
+        if (pErrorBlob)
+        {
+            OutputDebugStringA(reinterpret_cast<const char*>(pErrorBlob->GetBufferPointer()));
+        }
+  
+    }
+
+    ID3DX11Effect* effect = nullptr;
+    DX::ThrowIfFailed(
+    D3DX11CreateEffectFromMemory(ppBlobout->GetBufferPointer(), ppBlobout->GetBufferSize(), 0, device_.Get(), &effect));
+    return effect;
 }
+
