@@ -36,10 +36,25 @@
     <ClCompile Include="lea_engine_utils.hpp">
       <Filter>Header Files</Filter>
     </ClCompile>
-    <ClCompile Include="triangle_app.cpp">
+    <ClCompile Include="box_app.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="DXHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="terrain_app.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lea_engine_utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="shapes_app.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="pyramide_app.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="skull_app.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -62,12 +77,30 @@
     <ClInclude Include="lea_timer.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="triangle_app.hpp">
+    <ClInclude Include="box_app.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="terrain_app.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shapes_app.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="pyramide_app.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="skull_app.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="simple_shader.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="terrain_shader.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="pyramide_shader.fx">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

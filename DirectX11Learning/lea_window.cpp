@@ -41,8 +41,16 @@ bool lea::LeaWindow::ShouldClose()
 
         if (e_.type == SDL_WINDOWEVENT)
         {
-            if (e_.window.event == SDL_WINDOWEVENT_MINIMIZED) isActive_ = false;
-            else if (e_.window.event == SDL_WINDOWEVENT_RESTORED) isActive_ = true;
+            if (e_.window.event == SDL_WINDOWEVENT_MINIMIZED)
+            {
+                isActive_ = false;
+                TIMER.Stop();
+            }
+            else if (e_.window.event == SDL_WINDOWEVENT_RESTORED)
+            {
+                isActive_ = true;
+                TIMER.Start();
+            }
         }
     }
     return false;
@@ -131,7 +139,7 @@ void lea::LeaWindow::LeaCreateWindow(int width, int height)
     hwnd_ = wmInfo.info.win.window;
 }
 
-lea::LeaEvent::Key lea::LeaWindow::MapSDLKeyToLeaKey(SDL_Keycode sdl_key) const
+inline lea::LeaEvent::Key lea::LeaWindow::MapSDLKeyToLeaKey(SDL_Keycode sdl_key) const
 {
     using namespace lea;
     switch (sdl_key) {
@@ -146,7 +154,7 @@ lea::LeaEvent::Key lea::LeaWindow::MapSDLKeyToLeaKey(SDL_Keycode sdl_key) const
     }
 }
 
-lea::LeaEvent::Key lea::LeaWindow::MapMouseButtonToLeaKey(Uint8 button) const
+inline lea::LeaEvent::Key lea::LeaWindow::MapMouseButtonToLeaKey(Uint8 button) const
 {
     using namespace lea;
     switch (button) {

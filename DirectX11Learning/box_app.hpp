@@ -4,12 +4,12 @@
 
 namespace lea {
 	using Microsoft::WRL::ComPtr;
-	class TriangleApp : public App {
+	class BoxApp : public App {
 
 	public:
-		TriangleApp();
+		BoxApp();
 
-		virtual ~TriangleApp() {}
+		virtual ~BoxApp() {}
 	protected:
 		ComPtr<ID3DX11Effect> effect_;
 		ComPtr<ID3DX11EffectTechnique> effectTechnique_;

@@ -4,7 +4,11 @@
 
 #include <memory>
 
-#include "triangle_app.hpp"
+#include "terrain_app.hpp"
+#include "box_app.hpp"
+#include "shapes_app.hpp"
+#include "pyramide_app.hpp"
+#include "skull_app.hpp"
 
 int WINAPI wWinMain(
     _In_ HINSTANCE hInstance,
@@ -12,7 +16,7 @@ int WINAPI wWinMain(
     _In_ LPWSTR lpCmdLine,
     _In_ int nShowCmd)
 {
-    std::unique_ptr<lea::App> app = std::make_unique<lea::TriangleApp>();
+    std::unique_ptr<lea::App> app = std::make_unique<lea::SkullApp>();
     try {
         app->Run();
     }

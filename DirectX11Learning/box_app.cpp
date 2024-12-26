@@ -1,4 +1,4 @@
-#include "triangle_app.hpp"
+#include "box_app.hpp"
 
 #include <algorithm>
 
@@ -8,12 +8,23 @@
 #include "lea_timer.hpp"
 #include "lea_engine_utils.hpp"
 #include "DXHelper.hpp"
-using lea::utils::Vertex1;
+using lea::utils::Vertex0;
 using namespace DirectX;
 
 constexpr auto PI = 3.14f;
 
-lea::TriangleApp::TriangleApp()
+namespace {
+	inline UINT ArgbToAbgr(UINT argb)
+	{
+		BYTE A = (argb >> 24) & 0xff;
+		BYTE R = (argb >> 16) & 0xff;
+		BYTE G = (argb >> 8) & 0xff;
+		BYTE B = (argb >> 0) & 0xff;
+		return (A << 24) | (B << 16) | (G << 8) | (R << 0);
+	}
+}
+
+lea::BoxApp::BoxApp()
 	: App(), m_Theta(1.5f*PI), m_Phi(0.25f * PI), m_Radius(5.0f)
 {
 	m_LastMousePos.first = 0;
@@ -26,7 +37,7 @@ lea::TriangleApp::TriangleApp()
 	XMStoreFloat4x4(&mProj, I);
 }
 
-void lea::TriangleApp::Init()
+void lea::BoxApp::Init()
 {
 	effect_ = device_.CreateEffect(L"simple_shader.fx");
 	effectTechnique_ = effect_->GetTechniqueByName("ColorTech");
@@ -40,19 +51,29 @@ void lea::TriangleApp::Init()
 	device_.Context()->IASetInputLayout(inputLayout_.Get());
 	device_.Context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	UINT stride = sizeof(Vertex1);
-	UINT offset = 0;
-	ID3D11Buffer* const buffers[]  = { vertexBuffer_.Get() };
-	device_.Context()->IASetVertexBuffers(0, 1, buffers, &stride, &offset);
+	ID3D11RasterizerState* rastState;
+	
+	D3D11_RASTERIZER_DESC rasterizerDesc;
+	rasterizerDesc.FillMode = D3D11_FILL_SOLID;
+	rasterizerDesc.CullMode = D3D11_CULL_BACK;
+	rasterizerDesc.FrontCounterClockwise = false;
+
+	DX::ThrowIfFailed(device_.Device()->CreateRasterizerState(&rasterizerDesc, &rastState));
+	device_.Context()->RSSetState(rastState);
+
+	UINT stride = sizeof(Vertex0);
+	UINT offset1 = 0;
+	device_.Context()->IASetVertexBuffers(0, 1, vertexBuffer_.GetAddressOf(), &stride, &offset1);
 	device_.Context()->IASetIndexBuffer(indexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
 
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * PI,
 		window_.AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
 
+	rastState->Release();
 }
 
-void lea::TriangleApp::PollEvents()
+void lea::BoxApp::PollEvents()
 {
 	LeaEvent event = window_.GetCurrentEvent();
 
@@ -86,7 +107,7 @@ void lea::TriangleApp::PollEvents()
 	}
 }
 
-void lea::TriangleApp::UpdateScene(float deltaTime)
+void lea::BoxApp::UpdateScene(float deltaTime)
 {
 	float x = m_Radius * sinf(m_Phi) * cosf(m_Theta);
 	float z = m_Radius * sinf(m_Phi) * sinf(m_Theta);
@@ -99,7 +120,7 @@ void lea::TriangleApp::UpdateScene(float deltaTime)
 	XMStoreFloat4x4(&mView, V);
 }
 
-void lea::TriangleApp::DrawScene()
+void lea::BoxApp::DrawScene()
 {
 	auto context = device_.Context();
 
@@ -128,24 +149,26 @@ void lea::TriangleApp::DrawScene()
 
 }
 
-inline void lea::TriangleApp::CreateVertexBuffer()
+inline void lea::BoxApp::CreateVertexBuffer()
 {
-	Vertex1 vertices[] =
+	using DirectX::PackedVector::XMCOLOR;
+	
+	Vertex0 vertices[] =
 	{
-	{ XMFLOAT3(-.5f, -.5f, -.5f),  XMFLOAT4(1.f, 0.f, 0.f, 1.f)},
-	{ XMFLOAT3(-.5f, +.5f, -.5f), XMFLOAT4(1.f, 1.f, 0.f, 1.f) },
-	{ XMFLOAT3(+.5f, +.5f, -.5f), XMFLOAT4(1.f, 0.f, 1.f, 1.f) },
-	{ XMFLOAT3(+.5f, -.5f, -.5f), XMFLOAT4(1.f, 1.f, 0.f, 1.f) },
-	{ XMFLOAT3(-.5f, -.5f, +.5f), XMFLOAT4(1.f, 0.f, 1.f, 1.f) },
-	{ XMFLOAT3(-.5f, +.5f, +.5f), XMFLOAT4(1.f, 1.f, 1.f, 1.f) },
-	{ XMFLOAT3(+.5f, +.5f, +.5f), XMFLOAT4(1.f, 0.5f, 0.3f, 1.f) },
-	{ XMFLOAT3(+.5f, -.5f, +.5f), XMFLOAT4(0.3f, 0.6f, 0.2f, 1.f) }
+	{ XMFLOAT3(-.5f, -.5f, -.5f), ArgbToAbgr(XMCOLOR(DirectX::Colors::Red))},
+	{ XMFLOAT3(-.5f, +.5f, -.5f), ArgbToAbgr(XMCOLOR(DirectX::Colors::Green))},
+	{ XMFLOAT3(+.5f, +.5f, -.5f), ArgbToAbgr(XMCOLOR(DirectX::Colors::Yellow)) },
+	{ XMFLOAT3(+.5f, -.5f, -.5f), ArgbToAbgr(XMCOLOR(DirectX::Colors::Magenta)) },
+	{ XMFLOAT3(-.5f, -.5f, +.5f), ArgbToAbgr(XMCOLOR(DirectX::Colors::Coral)) },
+	{ XMFLOAT3(-.5f, +.5f, +.5f), ArgbToAbgr(XMCOLOR(DirectX::Colors::Purple))},
+	{ XMFLOAT3(+.5f, +.5f, +.5f), ArgbToAbgr(XMCOLOR(DirectX::Colors::Aquamarine)) },
+	{ XMFLOAT3(+.5f, -.5f, +.5f), ArgbToAbgr(XMCOLOR(DirectX::Colors::Blue)) }
 	};
 	UINT arrSize = ARRAYSIZE(vertices);
 
 	D3D11_BUFFER_DESC bufferDesc{};
 	bufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
-	bufferDesc.ByteWidth = sizeof(Vertex1) * arrSize;
+	bufferDesc.ByteWidth = sizeof(Vertex0) * arrSize;
 	bufferDesc.CPUAccessFlags = 0;
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
@@ -154,7 +177,7 @@ inline void lea::TriangleApp::CreateVertexBuffer()
 	DX::ThrowIfFailed(device_.Device()->CreateBuffer(&bufferDesc, &subData, vertexBuffer_.GetAddressOf()));
 }
 
-void lea::TriangleApp::CreateIndexBuffer()
+void lea::BoxApp::CreateIndexBuffer()
 {
 	UINT indexes[] = {
 		// front face
@@ -190,11 +213,11 @@ void lea::TriangleApp::CreateIndexBuffer()
 	DX::ThrowIfFailed(device_.Device()->CreateBuffer(&bufferDesc, &subData, indexBuffer_.GetAddressOf()));
 }
 
-void lea::TriangleApp::CreateInputLayout()
+void lea::BoxApp::CreateInputLayout()
 {
 	D3D11_INPUT_ELEMENT_DESC inputs[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
 	};
 
 	D3DX11_PASS_DESC passDesc;

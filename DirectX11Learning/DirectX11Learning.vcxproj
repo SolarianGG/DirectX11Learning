@@ -146,11 +146,16 @@
     <ClCompile Include="app.cpp" />
     <ClCompile Include="DXHelper.cpp" />
     <ClCompile Include="lea_engine_device.cpp" />
+    <ClCompile Include="lea_engine_utils.cpp" />
     <ClCompile Include="lea_engine_utils.hpp" />
     <ClCompile Include="lea_timer.cpp" />
     <ClCompile Include="lea_window.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="triangle_app.cpp" />
+    <ClCompile Include="box_app.cpp" />
+    <ClCompile Include="pyramide_app.cpp" />
+    <ClCompile Include="shapes_app.cpp" />
+    <ClCompile Include="skull_app.cpp" />
+    <ClCompile Include="terrain_app.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -161,14 +166,26 @@
     <ClInclude Include="lea_timer.hpp" />
     <ClInclude Include="lea_engine_device.hpp" />
     <ClInclude Include="lea_window.hpp" />
-    <ClInclude Include="triangle_app.hpp" />
+    <ClInclude Include="box_app.hpp" />
+    <ClInclude Include="pyramide_app.hpp" />
+    <ClInclude Include="shapes_app.hpp" />
+    <ClInclude Include="skull_app.hpp" />
+    <ClInclude Include="terrain_app.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="pyramide_shader.fx">
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VS</EntryPointName>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">VS</EntryPointName>
+    </FxCompile>
     <FxCompile Include="simple_shader.fx">
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VS</EntryPointName>
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">VS</EntryPointName>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="terrain_shader.fx">
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VS</EntryPointName>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">VS</EntryPointName>
     </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
