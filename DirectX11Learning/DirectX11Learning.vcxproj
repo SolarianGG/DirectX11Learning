@@ -156,8 +156,11 @@
     <ClCompile Include="shapes_app.cpp" />
     <ClCompile Include="skull_app.cpp" />
     <ClCompile Include="terrain_app.cpp" />
+    <ClCompile Include="waves.cpp" />
+    <ClCompile Include="waves_app.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="light_helper.fxh" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -171,6 +174,8 @@
     <ClInclude Include="shapes_app.hpp" />
     <ClInclude Include="skull_app.hpp" />
     <ClInclude Include="terrain_app.hpp" />
+    <ClInclude Include="waves.hpp" />
+    <ClInclude Include="waves_app.hpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="pyramide_shader.fx">

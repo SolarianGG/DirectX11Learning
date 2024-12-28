@@ -2,31 +2,6 @@
 
 #include <algorithm>
 
-namespace {
-	float AngleFromXY(float x, float y)
-	{
-		constexpr float Pi = 3.14f;
-		float theta = 0.0f;
-
-		// Quadrant I or IV
-		if (x >= 0.0f)
-		{
-			// If x = 0, then atanf(y/x) = +pi/2 if y > 0
-			//                atanf(y/x) = -pi/2 if y < 0
-			theta = atanf(y / x); // in [-pi/2, +pi/2]
-
-			if (theta < 0.0f)
-				theta += 2.0f * Pi; // in [0, 2*pi).
-		}
-
-		// Quadrant II or III
-		else
-			theta = atanf(y / x) + Pi; // in [0, 2*pi).
-
-		return theta;
-	}
-}
-
 namespace lea{
 
 	namespace utils {
@@ -356,7 +331,7 @@ namespace lea{
 				XMStoreFloat3(&meshData.Vertices[i].Normal, n);
 
 				// Derive texture coordinates from spherical coordinates.
-				float theta = AngleFromXY(
+				float theta = MathHelper::AngleFromXY(
 					meshData.Vertices[i].Position.x,
 					meshData.Vertices[i].Position.z);
 

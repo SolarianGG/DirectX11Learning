@@ -9,6 +9,7 @@
 #include "shapes_app.hpp"
 #include "pyramide_app.hpp"
 #include "skull_app.hpp"
+#include "waves_app.hpp"
 
 int WINAPI wWinMain(
     _In_ HINSTANCE hInstance,
@@ -16,7 +17,7 @@ int WINAPI wWinMain(
     _In_ LPWSTR lpCmdLine,
     _In_ int nShowCmd)
 {
-    std::unique_ptr<lea::App> app = std::make_unique<lea::SkullApp>();
+    std::unique_ptr<lea::App> app = std::make_unique<lea::WavesApp>();
     try {
         app->Run();
     }

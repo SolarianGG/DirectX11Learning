@@ -57,9 +57,18 @@
     <ClCompile Include="skull_app.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="waves_app.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="waves.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="light_helper.fxh">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DXHelper.hpp">
@@ -90,6 +99,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="skull_app.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="waves_app.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="waves.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

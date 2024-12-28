@@ -58,6 +58,20 @@ namespace lea {
 		device_.Context()->IASetInputLayout(inputLayout_.Get());
 		device_.Context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+		D3D11_RECT scissorsRect = { 100, 50, 950, 750 };
+		device_.Context()->RSSetScissorRects(1, &scissorsRect);
+
+		D3D11_RASTERIZER_DESC rastDesc{};
+		rastDesc.FillMode = D3D11_FILL_SOLID;
+		rastDesc.CullMode = D3D11_CULL_BACK;
+		rastDesc.FrontCounterClockwise = false;
+		rastDesc.ScissorEnable = true;
+
+		ComPtr<ID3D11RasterizerState> rastState;
+		DX::ThrowIfFailed(device_.Device()->CreateRasterizerState(&rastDesc, rastState.GetAddressOf()));
+
+		device_.Context()->RSSetState(rastState.Get());
+
 		UINT stride = sizeof(Vertex1);
 		UINT offset = 0;
 		ID3D11Buffer* const buffers[] = { vertexBuffer_.Get() };
@@ -125,7 +139,7 @@ namespace lea {
 		GeometryGenerator geoGen;
 		geoGen.CreateBox(1.0f, 1.0f, 1.0f, box);
 		geoGen.CreateGrid(20.0f, 30.0f, 60, 40, grid);
-		geoGen.CreateSphere(0.5f, 20, 20, sphere);
+		geoGen.CreateGeosphere(0.5f, 3, sphere);
 		//geoGen.CreateGeosphere(0.5f, 2, sphere);
 		geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20, cylinder);
 

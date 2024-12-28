@@ -16,7 +16,7 @@ constexpr auto PI = 3.14f;
 
 namespace lea {
 	TerrainApp::TerrainApp() 
-		: App(), mTheta(1.5f * PI), mPhi(0.1f * PI), mRadius(200.0f)
+		: App(), mGridIndexCount(0), mTheta(1.5f * PI), mPhi(0.1f * PI), mRadius(200.0f)
 	{
 		m_LastMousePos.first = 0;
 		m_LastMousePos.second = 0;
@@ -69,15 +69,15 @@ namespace lea {
 				mTheta += dx;
 				mPhi += dy;
 				// Restrict the angle mPhi.
-				mPhi = std::clamp(mPhi, 0.1f, PI - 0.1f);
+				mPhi = std::clamp(mPhi, 0.1f, XM_PI - 0.1f);
 			}
 			else if (event.key == LeaEvent::KeyRightMouse) {
-				float dx = 0.005f * static_cast<float>(event.mouse_x - m_LastMousePos.first);
-				float dy = 0.005f * static_cast<float>(event.mouse_y - m_LastMousePos.second);
+				float dx = 0.2f * static_cast<float>(event.mouse_x - m_LastMousePos.first);
+				float dy = 0.2f * static_cast<float>(event.mouse_y - m_LastMousePos.second);
 				// Update the camera radius based on input.
 				mRadius += dx - dy;
 				// Restrict the radius.
-				mRadius = std::clamp(mRadius, 3.0f, 15.0f);
+				mRadius = std::clamp(mRadius, 50.0f, 500.0f);
 			}
 		}
 		m_LastMousePos.first = event.mouse_x;
