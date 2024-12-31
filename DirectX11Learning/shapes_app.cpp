@@ -6,6 +6,8 @@
 #include <DirectXMath.h>
 #include <DirectXColors.h>
 
+#include <fstream>
+
 #include "lea_timer.hpp"
 #include "lea_engine_utils.hpp"
 
@@ -33,11 +35,12 @@ namespace lea {
 		XMMATRIX boxOffset = XMMatrixTranslation(0.0f, 0.5f, 0.0f);
 		XMStoreFloat4x4(&mBoxWorld, XMMatrixMultiply(boxScale, boxOffset));
 
-		XMMATRIX centerSphereScale = XMMatrixScaling(2.0f, 2.0f, 2.0f);
-		XMMATRIX centerSphereOffset = XMMatrixTranslation(0.0f, 2.0f, 0.0f);
-		XMStoreFloat4x4(&mCenterSphere, XMMatrixMultiply(centerSphereScale, centerSphereOffset));
+		XMMATRIX skullScale = XMMatrixScaling(.5f, .5f, .5f);
+		XMMATRIX skullOffset = XMMatrixTranslation(0.0f, 1.0f, 0.0f);
+		XMStoreFloat4x4(&mSkullWorld, XMMatrixMultiply(skullScale, skullOffset));
 
-		for (int i = 0; i < 5; ++i)
+		constexpr auto numOfSphAndCylInLine = 5;
+		for (int i = 0; i < numOfSphAndCylInLine; ++i)
 		{
 			XMStoreFloat4x4(&mCylWorld[i * 2 + 0], XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i * 5.0f));
 			XMStoreFloat4x4(&mCylWorld[i * 2 + 1], XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i * 5.0f));
@@ -67,6 +70,10 @@ namespace lea {
 		cylinderMat.Ambient = XMFLOAT4(0.1f, 0.4f, 0.1f, 1.0f);
 		cylinderMat.Diffuse = XMFLOAT4(0.2f, 0.8f, 0.2f, 1.0f);
 		cylinderMat.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 24.0f);
+
+		skullMat.Ambient = XMFLOAT4(0.35f, 0.35f, 0.1f, 1.0f);
+		skullMat.Diffuse = XMFLOAT4(0.7f, 0.7f, 0.2f, 1.0f);
+		skullMat.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 32.0f);
 
 	}
 	ShapesApp::~ShapesApp()
@@ -198,35 +205,42 @@ namespace lea {
 		//geoGen.CreateGeosphere(0.5f, 2, sphere);
 		geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20, cylinder);
 
+		auto [skullVertices, skullIndexes] = ScanModel(L"Models/skull.txt");
+
 		// Cache the vertex offsets to each object in the concatenated vertex buffer.
 		mBoxVertexOffset = 0;
 		mGridVertexOffset = box.Vertices.size();
 		mSphereVertexOffset = mGridVertexOffset + grid.Vertices.size();
 		mCylinderVertexOffset = mSphereVertexOffset + sphere.Vertices.size();
+		mSkullVertexOffset = mCylinderVertexOffset + cylinder.Vertices.size();
 
 		// Cache the index count of each object.
 		mBoxIndexCount = box.Indices.size();
 		mGridIndexCount = grid.Indices.size();
 		mSphereIndexCount = sphere.Indices.size();
 		mCylinderIndexCount = cylinder.Indices.size();
+		mSkullIndexCount = skullIndexes.size();
 
 		// Cache the starting index for each object in the concatenated index buffer.
 		mBoxIndexOffset = 0;
 		mGridIndexOffset = mBoxIndexCount;
 		mSphereIndexOffset = mGridIndexOffset + mGridIndexCount;
 		mCylinderIndexOffset = mSphereIndexOffset + mSphereIndexCount;
+		mSkullIndexOffset = mCylinderIndexOffset + mCylinderIndexCount;
 
 		UINT totalVertexCount =
 			box.Vertices.size() +
 			grid.Vertices.size() +
 			sphere.Vertices.size() +
-			cylinder.Vertices.size();
+			cylinder.Vertices.size() +
+			skullVertices.size();
 
 		UINT totalIndexCount =
 			mBoxIndexCount +
 			mGridIndexCount +
 			mSphereIndexCount +
-			mCylinderIndexCount;
+			mCylinderIndexCount +
+			mSkullIndexCount;
 
 		//
 		// Extract the vertex elements we are interested in and pack the
@@ -234,8 +248,6 @@ namespace lea {
 		//
 
 		std::vector<Vertex2> vertices(totalVertexCount);
-
-		XMFLOAT4 black(0.0f, 0.0f, 0.0f, 1.0f);
 
 		UINT k = 0;
 		for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
@@ -262,6 +274,11 @@ namespace lea {
 			vertices[k].norm = cylinder.Vertices[i].Normal;
 		}
 
+		for (size_t i = 0; i < skullVertices.size(); ++i, ++k)
+		{
+			vertices[k] = std::move(skullVertices[i]);
+		}
+
 		D3D11_BUFFER_DESC vbd{};
 		vbd.Usage = D3D11_USAGE_IMMUTABLE;
 		vbd.ByteWidth = sizeof(Vertex2) * totalVertexCount;
@@ -281,6 +298,7 @@ namespace lea {
 		indices.insert(indices.end(), grid.Indices.begin(), grid.Indices.end());
 		indices.insert(indices.end(), sphere.Indices.begin(), sphere.Indices.end());
 		indices.insert(indices.end(), cylinder.Indices.begin(), cylinder.Indices.end());
+		indices.insert(indices.end(), skullIndexes.begin(), skullIndexes.end());
 
 		D3D11_BUFFER_DESC ibd{};
 		ibd.Usage = D3D11_USAGE_IMMUTABLE;
@@ -308,49 +326,7 @@ namespace lea {
 	}
 	void ShapesApp::DrawScene()
 	{
-		ImGui_ImplDX11_NewFrame();
-		ImGui_ImplSDL2_NewFrame();
-		ImGui::NewFrame();
-		
-
-		// Example of ImGUI window
-		ImGui::Begin("ColorPickingWindow");
-
-		ImGui::DragFloat3("Light Direction", reinterpret_cast<float*>(&dirLight.Direction), 0.01f, -1.f, 1.f);
-		
-		ImGui::Text("Light colors: ");
-		ImGui::ColorEdit3("Light Ambient Color", reinterpret_cast<float*>(&dirLight.Ambient));
-		ImGui::ColorEdit3("Light Diffuse Color", reinterpret_cast<float*>(&dirLight.Diffuse));
-		ImGui::ColorEdit3("Light Specular Color", reinterpret_cast<float*>(&dirLight.Specular));
-
-		ImGui::Text("Cylinder colors: ");
-		ImGui::ColorEdit3("Cylinder Ambient Color", reinterpret_cast<float*>(&cylinderMat.Ambient));
-		ImGui::ColorEdit3("Cylinder Diffuse Color", reinterpret_cast<float*>(&cylinderMat.Diffuse));
-		ImGui::ColorEdit3("Cylinder Specular Color", reinterpret_cast<float*>(&cylinderMat.Specular));
-
-		if (ImGui::Button("TurnRed"))
-		{
-			dirLight.Diffuse = XMFLOAT4(1.f, 0.f, 0.f, 1.f);
-		}
-
-		ImGui::Text("Grid colors: ");
-		ImGui::ColorEdit3("Grid Ambient Color", reinterpret_cast<float*>(&gridMat.Ambient));
-		ImGui::ColorEdit3("Grid Diffuse Color", reinterpret_cast<float*>(&gridMat.Diffuse));
-		ImGui::ColorEdit3("Grid Specular Color", reinterpret_cast<float*>(&gridMat.Specular));
-
-		ImGui::Text("Sphere colors: ");
-		ImGui::ColorEdit3("Sphere Ambient Color", reinterpret_cast<float*>(&sphereMat.Ambient));
-		ImGui::ColorEdit3("Sphere Diffuse Color", reinterpret_cast<float*>(&sphereMat.Diffuse));
-		ImGui::ColorEdit3("Sphere Specular Color", reinterpret_cast<float*>(&sphereMat.Specular));
-
-		ImGui::Text("Box colors: ");
-		ImGui::ColorEdit3("Box Ambient Color", reinterpret_cast<float*>(&boxMat.Ambient));
-		ImGui::ColorEdit3("Box Diffuse Color", reinterpret_cast<float*>(&boxMat.Diffuse));
-		ImGui::ColorEdit3("Box Specular Color", reinterpret_cast<float*>(&boxMat.Specular));
-		
-
-		ImGui::End();
-
+		DrawGUI();
 		auto context = device_.Context();
 		context->ClearRenderTargetView(device_.RenderTargetView(), reinterpret_cast<const float*>(&DirectX::Colors::MidnightBlue));
 		context->ClearDepthStencilView(device_.DepthStencilView(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
@@ -396,7 +372,7 @@ namespace lea {
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mBoxIndexCount, mBoxIndexOffset, mBoxVertexOffset);
 
-			world = XMLoadFloat4x4(&mCenterSphere);
+			world = XMLoadFloat4x4(&mSkullWorld);
 			finalMatrix = world * viewProj;
 
 			det = XMMatrixDeterminant(world);
@@ -405,10 +381,10 @@ namespace lea {
 			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
 			worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
 			worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
-			mShapeMaterial_->SetRawValue(&sphereMat, 0, sizeof(sphereMat));
+			mShapeMaterial_->SetRawValue(&skullMat, 0, sizeof(skullMat));
 
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
-			context->DrawIndexed(mSphereIndexCount, mSphereIndexOffset, mSphereVertexOffset);
+			context->DrawIndexed(mSkullIndexCount, mSkullIndexOffset, mSkullVertexOffset);
 
 
 			for (uint32_t j = 0; j < 10; ++j)
@@ -449,5 +425,103 @@ namespace lea {
 		ImGui::Render();
 		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 		DX::ThrowIfFailed(device_.SwapChain()->Present(0, 0));
+	}
+	std::pair<std::vector<Vertex2>, std::vector<UINT>> ShapesApp::ScanModel(std::wstring_view file_name)
+	{
+		std::ifstream fin(file_name.data());
+
+		if (!fin)
+		{
+			MessageBox(0, L"Models not found.", 0, 0);
+			throw std::runtime_error("Failed to load model in memory");
+		}
+
+		UINT vcount = 0;
+		UINT tcount = 0;
+		std::string ignore;
+
+		fin >> ignore >> vcount;
+		fin >> ignore >> tcount;
+		fin >> ignore >> ignore >> ignore >> ignore;
+
+		std::vector<Vertex2> vertices(vcount);
+		for (UINT i = 0; i < vcount; ++i)
+		{
+			fin >> vertices[i].pos.x >> vertices[i].pos.y >> vertices[i].pos.z
+				>> vertices[i].norm.x >> vertices[i].norm.y >> vertices[i].norm.z;
+		}
+
+		fin >> ignore;
+		fin >> ignore;
+		fin >> ignore;
+
+		mSkullIndexCount = 3 * tcount;
+		std::vector<UINT> indices(mSkullIndexCount);
+		for (UINT i = 0; i < tcount; ++i)
+		{
+			fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+		}
+
+		fin.close();
+
+
+		return { vertices, indices };
+	}
+
+
+	void ShapesApp::DrawGUI()
+	{
+		ImGui_ImplDX11_NewFrame();
+		ImGui_ImplSDL2_NewFrame();
+		ImGui::NewFrame();
+
+
+		// Example of ImGUI window
+		ImGui::Begin("ColorPickingWindow");
+
+		ImGui::DragFloat3("Light Direction", reinterpret_cast<float*>(&dirLight.Direction), 0.01f, -1.f, 1.f);
+
+		ImGui::Text("Light colors: ");
+		ImGui::ColorEdit3("Light Ambient Color", reinterpret_cast<float*>(&dirLight.Ambient));
+		ImGui::ColorEdit3("Light Diffuse Color", reinterpret_cast<float*>(&dirLight.Diffuse));
+		ImGui::ColorEdit3("Light Specular Color", reinterpret_cast<float*>(&dirLight.Specular));
+
+		ImGui::Text("Cylinder colors: ");
+		ImGui::ColorEdit3("Cylinder Ambient Color", reinterpret_cast<float*>(&cylinderMat.Ambient));
+		ImGui::ColorEdit3("Cylinder Diffuse Color", reinterpret_cast<float*>(&cylinderMat.Diffuse));
+		ImGui::ColorEdit3("Cylinder Specular Color", reinterpret_cast<float*>(&cylinderMat.Specular));
+		ImGui::DragFloat("Cylinder specular", &cylinderMat.Specular.w, 0.0f, 512.0f);
+
+		if (ImGui::Button("TurnRed"))
+		{
+			dirLight.Diffuse = XMFLOAT4(1.f, 0.f, 0.f, 1.f);
+		}
+
+		ImGui::Text("Grid colors: ");
+		ImGui::ColorEdit3("Grid Ambient Color", reinterpret_cast<float*>(&gridMat.Ambient));
+		ImGui::ColorEdit3("Grid Diffuse Color", reinterpret_cast<float*>(&gridMat.Diffuse));
+		ImGui::ColorEdit3("Grid Specular Color", reinterpret_cast<float*>(&gridMat.Specular));
+		ImGui::DragFloat("Grid specular", &gridMat.Specular.w, 0.0f, 512.0f);
+
+		ImGui::Text("Sphere colors: ");
+		ImGui::ColorEdit3("Sphere Ambient Color", reinterpret_cast<float*>(&sphereMat.Ambient));
+		ImGui::ColorEdit3("Sphere Diffuse Color", reinterpret_cast<float*>(&sphereMat.Diffuse));
+		ImGui::ColorEdit3("Sphere Specular Color", reinterpret_cast<float*>(&sphereMat.Specular));
+		ImGui::DragFloat("Sphere specular", &sphereMat.Specular.w, 0.0f, 512.0f);
+
+		ImGui::Text("Box colors: ");
+		ImGui::ColorEdit3("Box Ambient Color", reinterpret_cast<float*>(&boxMat.Ambient));
+		ImGui::ColorEdit3("Box Diffuse Color", reinterpret_cast<float*>(&boxMat.Diffuse));
+		ImGui::ColorEdit3("Box Specular Color", reinterpret_cast<float*>(&boxMat.Specular));
+		ImGui::DragFloat("Box specular", &boxMat.Specular.w, 0.0f, 512.0f);
+
+		ImGui::Text("Skull colors: ");
+		ImGui::ColorEdit3("Skull Ambient Color", reinterpret_cast<float*>(&skullMat.Ambient));
+		ImGui::ColorEdit3("Skull Diffuse Color", reinterpret_cast<float*>(&skullMat.Diffuse));
+		ImGui::ColorEdit3("Skull Specular Color", reinterpret_cast<float*>(&skullMat.Specular));
+		ImGui::DragFloat("Skull specular", &skullMat.Specular.w, 0.0f, 512.0f);
+
+
+		ImGui::End();
 	}
 }

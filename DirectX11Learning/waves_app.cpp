@@ -116,6 +116,17 @@ namespace lea {
 				mRadius = std::clamp(mRadius, 50.0f, 500.0f);
 			}
 		}
+		else if (event.type = LeaEvent::TypePressed)
+		{
+			if (event.key == LeaEvent::KeyRight)
+			{
+				mSpotLight.Spot += 1.0f;
+			}
+			else if (event.key == LeaEvent::KeyLeft)
+			{
+				mSpotLight.Spot -= 1.0f;
+			}
+		}
 		m_LastMousePos.first = event.mouse_x;
 		m_LastMousePos.second = event.mouse_y;
 	}

@@ -32,7 +32,7 @@ namespace lea{
 		XMFLOAT4X4 mCylWorld[10];
 		XMFLOAT4X4 mBoxWorld;
 		XMFLOAT4X4 mGridWorld;
-		XMFLOAT4X4 mCenterSphere;
+		XMFLOAT4X4 mSkullWorld;
 
 		XMFLOAT4X4 mView;
 		XMFLOAT4X4 mProj;
@@ -41,16 +41,19 @@ namespace lea{
 		int mGridVertexOffset;
 		int mSphereVertexOffset;
 		int mCylinderVertexOffset;
+		int mSkullVertexOffset;
 
 		UINT mBoxIndexOffset;
 		UINT mGridIndexOffset;
 		UINT mSphereIndexOffset;
 		UINT mCylinderIndexOffset;
+		UINT mSkullIndexOffset;
 
 		UINT mBoxIndexCount;
 		UINT mGridIndexCount;
 		UINT mSphereIndexCount;
 		UINT mCylinderIndexCount;
+		UINT mSkullIndexCount;
 
 		XMFLOAT3 eyePos;
 
@@ -60,6 +63,7 @@ namespace lea{
 		Material sphereMat;
 		Material gridMat;
 		Material cylinderMat;
+		Material skullMat;
 
 		float mTheta;
 		float mPhi;
@@ -74,5 +78,8 @@ namespace lea{
 		void CreateInputLayout();
 
 		void DrawScene() override;
+
+		std::pair<std::vector<lea::utils::Vertex2>, std::vector<UINT>> ScanModel(std::wstring_view file_name);
+		void DrawGUI();
 	};
 }

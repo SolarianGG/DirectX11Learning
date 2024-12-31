@@ -1,4 +1,3 @@
-
 #include "light_helper.fxh"
 
 cbuffer cbPerFrame
@@ -35,7 +34,7 @@ VertexOut VS(VertexIn vIn)
 {
     VertexOut vOut;
     vOut.posW = mul(float4(vIn.posL, 1.f), gWorld).xyz;
-    vOut.normW = mul(vIn.normL, (float3x3) gWorldInvTranspose); // ?
+    vOut.normW = mul(vIn.normL, (float3x3) gWorldInvTranspose);
     vOut.posH = mul(float4(vIn.posL, 1.f), gWorldViewProj);
     return vOut;
 }
@@ -66,6 +65,7 @@ float4 PS(VertexOut vOut) : SV_Target
     ambient += A;
     diffuse += D;
     spec += S;
+    
 	   
     float4 litColor = ambient + diffuse + spec;
 
