@@ -8,15 +8,17 @@
 
 #include "lea_timer.hpp"
 #include "lea_engine_utils.hpp"
-#include "DXHelper.hpp"
-using lea::utils::Vertex1;
-using namespace DirectX;
 
-constexpr auto PI = 3.14f;
+#include "imgui_impl_dx11.h"
+#include "imgui_impl_sdl2.h"
+
+#include "DXHelper.hpp"
+using lea::utils::Vertex2;
+using namespace DirectX;
 
 namespace lea {
 	ShapesApp::ShapesApp()
-		: App(), mTheta(1.5f * PI), mPhi(0.1f * PI), mRadius(200.0f)
+		: App(), mTheta(1.5f * XM_PI), mPhi(0.1f * XM_PI), mRadius(200.0f)
 	{
 		m_LastMousePos.first = 0;
 		m_LastMousePos.second = 0;
@@ -44,13 +46,48 @@ namespace lea {
 			XMStoreFloat4x4(&mSphereWorld[i * 2 + 1], XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f));
 		}
 
+
+		dirLight.Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+		dirLight.Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		dirLight.Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		dirLight.Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
+
+		boxMat.Ambient = XMFLOAT4(0.4f, 0.1f, 0.1f, 1.0f);
+		boxMat.Diffuse = XMFLOAT4(0.8f, 0.2f, 0.2f, 1.0f);
+		boxMat.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 32.0f);
+
+		gridMat.Ambient = XMFLOAT4(0.166f, 0.166f, 0.166f, 1.0f);
+		gridMat.Diffuse = XMFLOAT4(0.33f, 0.33f, 0.33f, 1.0f);
+		gridMat.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 2.0f);
+
+		sphereMat.Ambient = XMFLOAT4(0.1f, 0.1f, 0.4f, 1.0f);
+		sphereMat.Diffuse = XMFLOAT4(0.2f, 0.2f, 0.8f, 1.0f);
+		sphereMat.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 256.0f);
+
+		cylinderMat.Ambient = XMFLOAT4(0.1f, 0.4f, 0.1f, 1.0f);
+		cylinderMat.Diffuse = XMFLOAT4(0.2f, 0.8f, 0.2f, 1.0f);
+		cylinderMat.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 24.0f);
+
+	}
+	ShapesApp::~ShapesApp()
+	{
+		ImGui_ImplDX11_Shutdown();
+		ImGui_ImplSDL2_Shutdown();
+		ImGui::DestroyContext();
 	}
 	void ShapesApp::Init()
 	{
-		effect_ = device_.CreateEffect(L"terrain_shader.fx");
-		effectTechnique_ = effect_->GetTechniqueByName("ColorTech");
+		effect_ = device_.CreateEffect(L"shapes_light.fx");
+		effectTechnique_ = effect_->GetTechniqueByName("LightTech");
 
-		worldMatrix_ = effect_->GetVariableByName("gWorldProjectView")->AsMatrix();
+		worldMatrix_ = effect_->GetVariableByName("gWorld")->AsMatrix();
+		worldViewProjectionMatrix_ = effect_->GetVariableByName("gWorldProjectView")->AsMatrix();
+		worldInverseTransposeMatrix_ = effect_->GetVariableByName("gWorldInverseTranspose")->AsMatrix();
+
+		mShapeMaterial_ = effect_->GetVariableByName("gMat");
+		mDirectionalLight_ = effect_->GetVariableByName("gDirectionalLight");
+
+		mEyePosW_ = effect_->GetVariableByName("gEyePosW")->AsVector();
 
 		CreateGeometryBuffers();
 		CreateInputLayout();
@@ -65,26 +102,43 @@ namespace lea {
 		rastDesc.FillMode = D3D11_FILL_SOLID;
 		rastDesc.CullMode = D3D11_CULL_BACK;
 		rastDesc.FrontCounterClockwise = false;
-		rastDesc.ScissorEnable = true;
+		rastDesc.ScissorEnable = false;
 
 		ComPtr<ID3D11RasterizerState> rastState;
 		DX::ThrowIfFailed(device_.Device()->CreateRasterizerState(&rastDesc, rastState.GetAddressOf()));
 
 		device_.Context()->RSSetState(rastState.Get());
 
-		UINT stride = sizeof(Vertex1);
+		UINT stride = sizeof(Vertex2);
 		UINT offset = 0;
 		ID3D11Buffer* const buffers[] = { vertexBuffer_.Get() };
 		device_.Context()->IASetVertexBuffers(0, 1, buffers, &stride, &offset);
 		device_.Context()->IASetIndexBuffer(indexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
 
-		XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * PI,
+		XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * XM_PI,
 			window_.AspectRatio(), 1.0f, 1000.0f);
 		XMStoreFloat4x4(&mProj, P);
+
+
+		// ImGUI
+
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO(); (void)io;
+		ImGui::StyleColorsDark();
+		     
+		
+		ImGui_ImplSDL2_InitForD3D(window_.SDL_WINDOW());
+		ImGui_ImplDX11_Init(device_.Device(), device_.Context());
 	}
 
 	void ShapesApp::PollEvents()
 	{
+		auto e = window_.SDL_EVENT();
+		ImGui_ImplSDL2_ProcessEvent(&e);
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantCaptureMouse || io.WantCaptureKeyboard) return;
+
 		LeaEvent event = window_.GetCurrentEvent();
 
 		if (event.type == LeaEvent::TypeMouseDown) {
@@ -101,7 +155,7 @@ namespace lea {
 				mTheta += dx;
 				mPhi += dy;
 				// Restrict the angle mPhi.
-				mPhi = std::clamp(mPhi, 0.1f, PI - 0.1f);
+				mPhi = std::clamp(mPhi, 0.1f, XM_PI - 0.1f);
 			}
 			else if (event.key == LeaEvent::KeyRightMouse) {
 				float dx = 0.005f * static_cast<float>(event.mouse_x - m_LastMousePos.first);
@@ -120,6 +174,7 @@ namespace lea {
 		float x = mRadius * sinf(mPhi) * cosf(mTheta);
 		float z = mRadius * sinf(mPhi) * sinf(mTheta);
 		float y = mRadius * cosf(mPhi);
+		eyePos = XMFLOAT3(x, y, z);
 		// Build the view matrix.
 		XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
 		XMVECTOR target = XMVectorZero();
@@ -178,7 +233,7 @@ namespace lea {
 		// vertices of all the meshes into one vertex buffer.
 		//
 
-		std::vector<Vertex1> vertices(totalVertexCount);
+		std::vector<Vertex2> vertices(totalVertexCount);
 
 		XMFLOAT4 black(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -186,35 +241,35 @@ namespace lea {
 		for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].pos = box.Vertices[i].Position;
-			vertices[k].color = black;
+			vertices[k].norm = box.Vertices[i].Normal;
 		}
 
 		for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].pos = grid.Vertices[i].Position;
-			vertices[k].color = black;
+			vertices[k].norm = grid.Vertices[i].Normal;
 		}
 
 		for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].pos = sphere.Vertices[i].Position;
-			vertices[k].color = black;
+			vertices[k].norm = sphere.Vertices[i].Normal;
 		}
 
 		for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].pos = cylinder.Vertices[i].Position;
-			vertices[k].color = black;
+			vertices[k].norm = cylinder.Vertices[i].Normal;
 		}
 
 		D3D11_BUFFER_DESC vbd{};
 		vbd.Usage = D3D11_USAGE_IMMUTABLE;
-		vbd.ByteWidth = sizeof(Vertex1) * totalVertexCount;
+		vbd.ByteWidth = sizeof(Vertex2) * totalVertexCount;
 		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbd.CPUAccessFlags = 0;
 		vbd.MiscFlags = 0;
 		D3D11_SUBRESOURCE_DATA vinitData{};
-		vinitData.pSysMem = &vertices[0];
+		vinitData.pSysMem = vertices.data();
 		DX::ThrowIfFailed(device_.Device()->CreateBuffer(&vbd, &vinitData, vertexBuffer_.GetAddressOf()));
 
 		//
@@ -234,7 +289,7 @@ namespace lea {
 		ibd.CPUAccessFlags = 0;
 		ibd.MiscFlags = 0;
 		D3D11_SUBRESOURCE_DATA iinitData{};
-		iinitData.pSysMem = &indices[0];
+		iinitData.pSysMem = indices.data();
 		DX::ThrowIfFailed(device_.Device()->CreateBuffer(&ibd, &iinitData, indexBuffer_.GetAddressOf()));
 	}
 
@@ -242,7 +297,7 @@ namespace lea {
 	{
 		D3D11_INPUT_ELEMENT_DESC inputs[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		};
 
 		D3DX11_PASS_DESC passDesc;
@@ -253,8 +308,50 @@ namespace lea {
 	}
 	void ShapesApp::DrawScene()
 	{
-		auto context = device_.Context();
+		ImGui_ImplDX11_NewFrame();
+		ImGui_ImplSDL2_NewFrame();
+		ImGui::NewFrame();
+		
 
+		// Example of ImGUI window
+		ImGui::Begin("ColorPickingWindow");
+
+		ImGui::DragFloat3("Light Direction", reinterpret_cast<float*>(&dirLight.Direction), 0.01f, -1.f, 1.f);
+		
+		ImGui::Text("Light colors: ");
+		ImGui::ColorEdit3("Light Ambient Color", reinterpret_cast<float*>(&dirLight.Ambient));
+		ImGui::ColorEdit3("Light Diffuse Color", reinterpret_cast<float*>(&dirLight.Diffuse));
+		ImGui::ColorEdit3("Light Specular Color", reinterpret_cast<float*>(&dirLight.Specular));
+
+		ImGui::Text("Cylinder colors: ");
+		ImGui::ColorEdit3("Cylinder Ambient Color", reinterpret_cast<float*>(&cylinderMat.Ambient));
+		ImGui::ColorEdit3("Cylinder Diffuse Color", reinterpret_cast<float*>(&cylinderMat.Diffuse));
+		ImGui::ColorEdit3("Cylinder Specular Color", reinterpret_cast<float*>(&cylinderMat.Specular));
+
+		if (ImGui::Button("TurnRed"))
+		{
+			dirLight.Diffuse = XMFLOAT4(1.f, 0.f, 0.f, 1.f);
+		}
+
+		ImGui::Text("Grid colors: ");
+		ImGui::ColorEdit3("Grid Ambient Color", reinterpret_cast<float*>(&gridMat.Ambient));
+		ImGui::ColorEdit3("Grid Diffuse Color", reinterpret_cast<float*>(&gridMat.Diffuse));
+		ImGui::ColorEdit3("Grid Specular Color", reinterpret_cast<float*>(&gridMat.Specular));
+
+		ImGui::Text("Sphere colors: ");
+		ImGui::ColorEdit3("Sphere Ambient Color", reinterpret_cast<float*>(&sphereMat.Ambient));
+		ImGui::ColorEdit3("Sphere Diffuse Color", reinterpret_cast<float*>(&sphereMat.Diffuse));
+		ImGui::ColorEdit3("Sphere Specular Color", reinterpret_cast<float*>(&sphereMat.Specular));
+
+		ImGui::Text("Box colors: ");
+		ImGui::ColorEdit3("Box Ambient Color", reinterpret_cast<float*>(&boxMat.Ambient));
+		ImGui::ColorEdit3("Box Diffuse Color", reinterpret_cast<float*>(&boxMat.Diffuse));
+		ImGui::ColorEdit3("Box Specular Color", reinterpret_cast<float*>(&boxMat.Specular));
+		
+
+		ImGui::End();
+
+		auto context = device_.Context();
 		context->ClearRenderTargetView(device_.RenderTargetView(), reinterpret_cast<const float*>(&DirectX::Colors::MidnightBlue));
 		context->ClearDepthStencilView(device_.DepthStencilView(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
@@ -262,26 +359,54 @@ namespace lea {
 		XMMATRIX proj = XMLoadFloat4x4(&mProj);
 		XMMATRIX viewProj = view * proj;
 
+		mEyePosW_->SetFloatVector(reinterpret_cast<const float*>(&eyePos));
+		mDirectionalLight_->SetRawValue(&dirLight, 0, sizeof(dirLight));
+
 		D3DX11_TECHNIQUE_DESC techDesc;
 		effectTechnique_->GetDesc(&techDesc);
 		for (uint32_t i = 0; i < techDesc.Passes; ++i)
 		{
 			XMMATRIX world = XMLoadFloat4x4(&mGridWorld);
 			XMMATRIX finalMatrix = world * viewProj;
-			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+			
+			XMVECTOR det = XMMatrixDeterminant(world);
+			XMMATRIX inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+
+			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
+			worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
+			worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+			mShapeMaterial_->SetRawValue(&gridMat, 0, sizeof(gridMat));
+
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mGridIndexCount, mGridIndexOffset, mGridVertexOffset);
 
 
 			world = XMLoadFloat4x4(&mBoxWorld);
 			finalMatrix = world * viewProj;
-			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+
+			det = XMMatrixDeterminant(world);
+			inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+
+			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
+			worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
+			worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+			mShapeMaterial_->SetRawValue(&boxMat, 0, sizeof(boxMat));
+
+
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mBoxIndexCount, mBoxIndexOffset, mBoxVertexOffset);
 
 			world = XMLoadFloat4x4(&mCenterSphere);
 			finalMatrix = world * viewProj;
-			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+
+			det = XMMatrixDeterminant(world);
+			inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+
+			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
+			worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
+			worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+			mShapeMaterial_->SetRawValue(&sphereMat, 0, sizeof(sphereMat));
+
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mSphereIndexCount, mSphereIndexOffset, mSphereVertexOffset);
 
@@ -290,7 +415,15 @@ namespace lea {
 			{
 				world = XMLoadFloat4x4(&mCylWorld[j]);
 				finalMatrix = world * viewProj;
-				worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+
+				det = XMMatrixDeterminant(world);
+				inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+
+				worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
+				worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
+				worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+				mShapeMaterial_->SetRawValue(&cylinderMat, 0, sizeof(cylinderMat));
+
 				effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 				context->DrawIndexed(mCylinderIndexCount, mCylinderIndexOffset, mCylinderVertexOffset);
 			}
@@ -299,13 +432,22 @@ namespace lea {
 			{
 				world = XMLoadFloat4x4(&mSphereWorld[j]);
 				finalMatrix = world * viewProj;
-				worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+
+				det = XMMatrixDeterminant(world);
+				inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+
+				worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
+				worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
+				worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
+				mShapeMaterial_->SetRawValue(&sphereMat, 0, sizeof(sphereMat));
+
 				effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 				context->DrawIndexed(mSphereIndexCount, mSphereIndexOffset, mSphereVertexOffset);
 			}
 		}
 
-
+		ImGui::Render();
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 		DX::ThrowIfFailed(device_.SwapChain()->Present(0, 0));
 	}
 }

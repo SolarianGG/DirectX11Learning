@@ -3,11 +3,13 @@
 #include "app.hpp"
 #include "waves.hpp"
 
-namespace lea {
+#include "lea_engine_utils.hpp"
 
+namespace lea {
+	using namespace lea::utils::light;
 
 	class WavesApp : public App {
-
+	
 
 	public:
 		WavesApp();
@@ -16,15 +18,12 @@ namespace lea {
 	protected:
 		ComPtr<ID3DX11Effect> effect_;
 		ComPtr<ID3DX11EffectTechnique> effectTechnique_;
-		ComPtr<ID3DX11EffectMatrixVariable> worldMatrix_;
+		
 
 		ComPtr<ID3D11Buffer> landVertexBuffer_;
 		ComPtr<ID3D11Buffer> landIndexBuffer_;
 		ComPtr<ID3D11Buffer> wavesVertexBuffer_;
 		ComPtr<ID3D11Buffer> wavesIndexBuffer_;
-
-		ComPtr<ID3D11RasterizerState> rastState_;
-
 
 		ComPtr<ID3D11InputLayout> inputLayout_;
 
@@ -38,10 +37,30 @@ namespace lea {
 		XMFLOAT4X4 mView;
 		XMFLOAT4X4 mProj;
 
+		DirectionalLight mDirLight;
+		PointLight mPointLight;
+		SpotLight mSpotLight;
+		Material mLandMat;
+		Material mWavesMat;
+
+		XMFLOAT3 mEyePosW;
+
 		float mTheta;
 		float mPhi;
 		float mRadius;
 		std::pair<int, int> m_LastMousePos;
+
+		ComPtr<ID3DX11EffectMatrixVariable> mfxWorldViewProj;
+		ComPtr<ID3DX11EffectMatrixVariable> mfxWorld;
+		ComPtr<ID3DX11EffectMatrixVariable> mfxWorldInvTranspose;
+		ComPtr<ID3DX11EffectVectorVariable> mfxEyePosW;
+		ComPtr<ID3DX11EffectVariable> mfxDirLight;
+		ComPtr<ID3DX11EffectVariable> mfxPointLight;
+		ComPtr<ID3DX11EffectVariable> mfxSpotLight;
+		ComPtr<ID3DX11EffectVariable> mfxMaterial;
+
+
+
 		void Init() override;
 
 		void PollEvents() override;
@@ -54,5 +73,6 @@ namespace lea {
 		void DrawScene() override;
 
 		float GetHeight(float x, float z) const;
+		XMFLOAT3 GetHillNormal(float x, float z) const;
 	};
 }

@@ -118,5 +118,14 @@
     <FxCompile Include="pyramide_shader.fx">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="simple_light.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="box_light.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shapes_light.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

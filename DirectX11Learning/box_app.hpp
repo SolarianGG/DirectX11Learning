@@ -4,6 +4,7 @@
 
 namespace lea {
 	using Microsoft::WRL::ComPtr;
+	using namespace lea::utils::light;
 	class BoxApp : public App {
 
 	public:
@@ -11,14 +12,29 @@ namespace lea {
 
 		virtual ~BoxApp() {}
 	protected:
-		ComPtr<ID3DX11Effect> effect_;
-		ComPtr<ID3DX11EffectTechnique> effectTechnique_;
-		ComPtr<ID3DX11EffectMatrixVariable> worldMatrix_;
-		//ComPtr<ID3DX11EffectMatrixVariable> effectTechnique_;
+		ComPtr<ID3DX11Effect> mEffect_;
+		ComPtr<ID3DX11EffectTechnique> mEffectTechnique_;
 
-		ComPtr<ID3D11Buffer> vertexBuffer_;
-		ComPtr<ID3D11Buffer> indexBuffer_;
-		ComPtr<ID3D11InputLayout> inputLayout_;
+		ComPtr<ID3DX11EffectMatrixVariable> mWorldViewProj_;
+		ComPtr<ID3DX11EffectMatrixVariable> mWorld_;
+		ComPtr<ID3DX11EffectMatrixVariable> mWorldInverseTranspose_;
+		ComPtr<ID3DX11EffectVariable> mMaterial_;
+		ComPtr<ID3DX11EffectVariable> mPointLight_;
+		ComPtr<ID3DX11EffectVariable> mDirectionalLight_;
+
+		ComPtr<ID3DX11EffectVectorVariable> mEyePosition_;
+
+		ComPtr<ID3D11Buffer> mVertexBuffer_;
+		ComPtr<ID3D11Buffer> mIndexBuffer_;
+		ComPtr<ID3D11InputLayout> mIputLayout_;
+		ComPtr<ID3D11RasterizerState> mRastState_;
+
+		XMFLOAT3 mEyePosition;
+
+		Material mBoxMaterial;
+
+		PointLight mPointLight;
+		DirectionalLight mDirectionalLight;
 
 		XMFLOAT4X4 mWorld;
 		XMFLOAT4X4 mView;
@@ -28,7 +44,9 @@ namespace lea {
 		float m_Phi;
 		float m_Radius;
 
-		std::pair<int, int> m_LastMousePos;
+		UINT mBoxIndexCount = 0;
+
+		std::pair<int, int> mLastMousePos;
 
 		void Init() override;
 
@@ -38,8 +56,7 @@ namespace lea {
 
 		void DrawScene() override;
 
-		void CreateVertexBuffer();
-		void CreateIndexBuffer();
+		void CreateGeometryBuffers();
 		void CreateInputLayout();
 	};
 }

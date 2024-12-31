@@ -267,7 +267,7 @@ ID3DX11Effect* lea::LeaDevice::CreateEffect(const WCHAR* szFileName)
 
     ComPtr<ID3DBlob> pErrorBlob;
     ComPtr<ID3DBlob> ppBlobout;
-    HRESULT hr = D3DCompileFromFile(szFileName, nullptr, nullptr, 0, "fx_5_0",
+    HRESULT hr = D3DCompileFromFile(szFileName, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, 0, "fx_5_0",
         dwShaderFlags, 0, ppBlobout.GetAddressOf(), pErrorBlob.GetAddressOf());
     if (FAILED(hr))
     {

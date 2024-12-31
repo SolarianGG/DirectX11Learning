@@ -4,16 +4,24 @@
 
 namespace lea{
 	using Microsoft::WRL::ComPtr;
-
+	using namespace lea::utils::light;
 	class ShapesApp : public App {
 	public:
 		ShapesApp();
-		virtual ~ShapesApp() {}
+		virtual ~ShapesApp();
 
 	protected:
 		ComPtr<ID3DX11Effect> effect_;
 		ComPtr<ID3DX11EffectTechnique> effectTechnique_;
+
 		ComPtr<ID3DX11EffectMatrixVariable> worldMatrix_;
+		ComPtr<ID3DX11EffectMatrixVariable> worldViewProjectionMatrix_;
+		ComPtr<ID3DX11EffectMatrixVariable> worldInverseTransposeMatrix_;
+
+		ComPtr<ID3DX11EffectVariable> mShapeMaterial_;
+		ComPtr<ID3DX11EffectVariable> mDirectionalLight_;
+
+		ComPtr<ID3DX11EffectVectorVariable> mEyePosW_;
 
 		ComPtr<ID3D11Buffer> vertexBuffer_;
 		ComPtr<ID3D11Buffer> indexBuffer_;
@@ -43,6 +51,15 @@ namespace lea{
 		UINT mGridIndexCount;
 		UINT mSphereIndexCount;
 		UINT mCylinderIndexCount;
+
+		XMFLOAT3 eyePos;
+
+		DirectionalLight dirLight;
+
+		Material boxMat;
+		Material sphereMat;
+		Material gridMat;
+		Material cylinderMat;
 
 		float mTheta;
 		float mPhi;

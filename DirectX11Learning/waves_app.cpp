@@ -10,7 +10,7 @@
 #include "lea_engine_utils.hpp"
 #include "DXHelper.hpp"
 
-using lea::utils::Vertex1;
+using lea::utils::Vertex2;
 using namespace DirectX;
 
 namespace lea {
@@ -26,14 +26,55 @@ namespace lea {
 		XMStoreFloat4x4(&mGridWaves, I);
 		XMStoreFloat4x4(&mView, I);
 		XMStoreFloat4x4(&mProj, I);
+
+		XMMATRIX wavesOffset = XMMatrixTranslation(0.0f, -3.0f, 0.0f);
+		XMStoreFloat4x4(&mGridWaves, wavesOffset);
+
+		// Directional light.
+		mDirLight.Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+		mDirLight.Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		mDirLight.Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		mDirLight.Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
+
+		// Point light--position is changed every frame to animate in UpdateScene function.
+		mPointLight.Ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+		mPointLight.Diffuse = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
+		mPointLight.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
+		mPointLight.Att = XMFLOAT3(0.0f, 0.1f, 0.0f);
+		mPointLight.Range = 25.0f;
+
+		// Spot light--position and direction changed every frame to animate in UpdateScene function.
+		mSpotLight.Ambient = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		mSpotLight.Diffuse = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
+		mSpotLight.Specular = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+		mSpotLight.Att = XMFLOAT3(1.0f, 0.0f, 0.0f);
+		mSpotLight.Spot = 96.0f;
+		mSpotLight.Range = 10000.0f;
+
+		mLandMat.Ambient = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
+		mLandMat.Diffuse = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
+		mLandMat.Specular = XMFLOAT4(0.2f, 0.2f, 0.2f, 16.0f);
+
+		mWavesMat.Ambient = XMFLOAT4(0.137f, 0.42f, 0.556f, 1.0f);
+		mWavesMat.Diffuse = XMFLOAT4(0.137f, 0.42f, 0.556f, 1.0f);
+		mWavesMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 96.0f);
+
 	}
 	void WavesApp::Init()
 	{
 		waves.Init(200, 200, 0.8f, 0.03f, 3.25f, 0.4f);
 
-		effect_ = device_.CreateEffect(L"terrain_shader.fx");
-		effectTechnique_ = effect_->GetTechniqueByName("ColorTech");
-		worldMatrix_ = effect_->GetVariableByName("gWorldProjectView")->AsMatrix();
+		effect_ = device_.CreateEffect(L"simple_light.fx");
+		effectTechnique_ = effect_->GetTechniqueByName("LightTech");
+
+		mfxWorldViewProj = effect_->GetVariableByName("gWorldViewProj")->AsMatrix();
+		mfxWorld = effect_->GetVariableByName("gWorld")->AsMatrix();
+		mfxWorldInvTranspose = effect_->GetVariableByName("gWorldInvTranspose")->AsMatrix();
+		mfxEyePosW = effect_->GetVariableByName("gEyePosW")->AsVector();
+		mfxDirLight = effect_->GetVariableByName("gDirLight");
+		mfxPointLight = effect_->GetVariableByName("gPointLight");
+		mfxSpotLight = effect_->GetVariableByName("gSpotLight");
+		mfxMaterial = effect_->GetVariableByName("gMaterial");
 
 		CreateInputLayout();
 		BuildLandGeometryBuffers();
@@ -41,14 +82,6 @@ namespace lea {
 
 		device_.Context()->IASetInputLayout(inputLayout_.Get());
 		device_.Context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-		D3D11_RASTERIZER_DESC rastDesc{};
-		rastDesc.FillMode = D3D11_FILL_WIREFRAME;
-		rastDesc.CullMode = D3D11_CULL_BACK;
-		rastDesc.DepthClipEnable = true;
-		rastDesc.FrontCounterClockwise = false;
-
-		DX::ThrowIfFailed(device_.Device()->CreateRasterizerState(&rastDesc, rastState_.GetAddressOf()));
 
 		XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * XM_PI,
 			window_.AspectRatio(), 1.0f, 1000.0f);
@@ -88,10 +121,13 @@ namespace lea {
 	}
 	void WavesApp::UpdateScene(float deltaTime)
 	{
+		using namespace lea::utils;
 		// Convert Spherical to Cartesian coordinates.
 		float x = mRadius * sinf(mPhi) * cosf(mTheta);
 		float z = mRadius * sinf(mPhi) * sinf(mTheta);
 		float y = mRadius * cosf(mPhi);
+
+		mEyePosW = XMFLOAT3(x, y, z);
 
 		// Build the view matrix.
 		XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
@@ -109,10 +145,10 @@ namespace lea {
 		{
 			t_base += 0.25f;
 
-			DWORD i = 5 + rand() % 190;
-			DWORD j = 5 + rand() % 190;
+			DWORD i = 5 + rand() % (waves.RowCount() - 10);
+			DWORD j = 5 + rand() % (waves.ColumnCount() - 10);
 
-			float r = lea::utils::MathHelper::RandF(1.0f, 2.0f);
+			float r = MathHelper::RandF(1.0f, 2.0f);
 
 			waves.Disturb(i, j, r);
 		}
@@ -126,15 +162,31 @@ namespace lea {
 		D3D11_MAPPED_SUBRESOURCE mappedData;
 		DX::ThrowIfFailed(device_.Context()->Map(wavesVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedData));
 
-		Vertex1* v = reinterpret_cast<Vertex1*>(mappedData.pData);
+		Vertex2* v = reinterpret_cast<Vertex2*>(mappedData.pData);
 		for (UINT i = 0; i < waves.VertexCount(); ++i)
 		{
 			v[i].pos = waves[i];
-			v[i].color = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+			v[i].norm = waves.Normal(i);
 		}
 
 		device_.Context()->Unmap(wavesVertexBuffer_.Get(), 0);
 
+		//
+		// Animate the lights.
+		//
+
+		// Circle light over the land surface.
+		mPointLight.Position.x = 70.0f * cosf(0.2f * TIMER.TotalTime());
+		mPointLight.Position.z = 70.0f * sinf(0.2f * TIMER.TotalTime());
+		mPointLight.Position.y = MathHelper::Max(GetHeight(mPointLight.Position.x,
+			mPointLight.Position.z), -3.0f) + 10.0f;
+
+
+		// The spotlight takes on the camera position and is aimed in the
+		// same direction the camera is looking.  In this way, it looks
+		// like we are holding a flashlight.
+		mSpotLight.Position = mEyePosW;
+		XMStoreFloat3(&mSpotLight.Direction, XMVector3Normalize(target - pos));
 
 	}
 	void WavesApp::BuildLandGeometryBuffers()
@@ -154,7 +206,7 @@ namespace lea {
 		// sandy looking beaches, grassy low hills, and snow mountain peaks.
 		//
 
-		std::vector<Vertex1> vertices(grid.Vertices.size());
+		std::vector<Vertex2> vertices(grid.Vertices.size());
 		for (size_t i = 0; i < grid.Vertices.size(); ++i)
 		{
 			XMFLOAT3 p = grid.Vertices[i].Position;
@@ -162,38 +214,12 @@ namespace lea {
 			p.y = GetHeight(p.x, p.z);
 
 			vertices[i].pos = p;
-
-			// Color the vertex based on its height.
-			if (p.y < -10.0f)
-			{
-				// Sandy beach color.
-				vertices[i].color = XMFLOAT4(1.0f, 0.96f, 0.62f, 1.0f);
-			}
-			else if (p.y < 5.0f)
-			{
-				// Light yellow-green.
-				vertices[i].color = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
-			}
-			else if (p.y < 12.0f)
-			{
-				// Dark yellow-green.
-				vertices[i].color = XMFLOAT4(0.1f, 0.48f, 0.19f, 1.0f);
-			}
-			else if (p.y < 20.0f)
-			{
-				// Dark brown.
-				vertices[i].color = XMFLOAT4(0.45f, 0.39f, 0.34f, 1.0f);
-			}
-			else
-			{
-				// White snow.
-				vertices[i].color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-			}
+			vertices[i].norm = GetHillNormal(p.x, p.z);
 		}
 
 		D3D11_BUFFER_DESC vbd{};
 		vbd.Usage = D3D11_USAGE_IMMUTABLE;
-		vbd.ByteWidth = sizeof(Vertex1) * grid.Vertices.size();
+		vbd.ByteWidth = sizeof(Vertex2) * grid.Vertices.size();
 		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbd.CPUAccessFlags = 0;
 		vbd.MiscFlags = 0;
@@ -220,7 +246,7 @@ namespace lea {
 	{
 		D3D11_BUFFER_DESC vbd{};
 		vbd.Usage = D3D11_USAGE_DYNAMIC;
-		vbd.ByteWidth = sizeof(Vertex1) * waves.VertexCount();
+		vbd.ByteWidth = sizeof(Vertex2) * waves.VertexCount();
 		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		vbd.MiscFlags = 0;
@@ -235,7 +261,7 @@ namespace lea {
 		// Iterate over each quad.
 		UINT m = waves.RowCount();
 		UINT n = waves.ColumnCount();
-		int k = 0;
+		int k = 0;	
 		for (UINT i = 0; i < m - 1; ++i)
 		{
 			for (DWORD j = 0; j < n - 1; ++j)
@@ -266,7 +292,7 @@ namespace lea {
 	{
 		D3D11_INPUT_ELEMENT_DESC inputs[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		};
 
 		D3DX11_PASS_DESC passDesc;
@@ -281,6 +307,19 @@ namespace lea {
 		return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
 	}
 
+	XMFLOAT3 WavesApp::GetHillNormal(float x, float z) const
+	{
+		XMFLOAT3 n(
+			-0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z),
+			1.0f,
+			-0.3f * sinf(0.1f * x) + 0.03f * x * sinf(0.1f * z));
+
+		XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
+		XMStoreFloat3(&n, unitNormal);
+
+		return n;
+	}
+
 	void WavesApp::DrawScene()
 	{
 		auto context = device_.Context();
@@ -288,12 +327,17 @@ namespace lea {
 		context->ClearRenderTargetView(device_.RenderTargetView(), reinterpret_cast<const float*>(&Colors::MidnightBlue));
 		context->ClearDepthStencilView(device_.DepthStencilView(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
-		UINT strides = sizeof(Vertex1);
+		UINT strides = sizeof(Vertex2);
 		UINT offset = 0;
 
 		XMMATRIX view = XMLoadFloat4x4(&mView);
 		XMMATRIX proj = XMLoadFloat4x4(&mProj);
 		XMMATRIX viewProj = view * proj;
+
+		mfxDirLight->SetRawValue(&mDirLight, 0, sizeof(mDirLight));
+		mfxPointLight->SetRawValue(&mPointLight, 0, sizeof(mPointLight));
+		mfxSpotLight->SetRawValue(&mSpotLight, 0, sizeof(mSpotLight));
+		mfxEyePosW->SetRawValue(&mEyePosW, 0, sizeof(mEyePosW));
 
 		D3DX11_TECHNIQUE_DESC techDesc;
 		effectTechnique_->GetDesc(&techDesc);
@@ -304,27 +348,32 @@ namespace lea {
 			context->IASetIndexBuffer(landIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
 
 			XMMATRIX world = XMLoadFloat4x4(&mGridWorld);
+			XMMATRIX worldInvTrans = lea::utils::MathHelper::InverseTranspose(world);
 			XMMATRIX worldViewProj = world * viewProj;
-			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&worldViewProj));
+
+			mfxWorldViewProj->SetMatrix(reinterpret_cast<const float*>(&worldViewProj));
+			mfxWorld->SetMatrix(reinterpret_cast<const float*>(&world));
+			mfxWorldInvTranspose->SetMatrix(reinterpret_cast<const float*>(&worldInvTrans));
+			mfxMaterial->SetRawValue(&mLandMat, 0, sizeof(mLandMat));
+
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mGridIndexCount, 0, 0);
 
 			// waves drawing
-
-			context->RSSetState(rastState_.Get());
-
-
 			context->IASetVertexBuffers(0, 1, wavesVertexBuffer_.GetAddressOf(), &strides, &offset);
 			context->IASetIndexBuffer(wavesIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
 
 			world = XMLoadFloat4x4(&mGridWaves);
+			worldInvTrans = lea::utils::MathHelper::InverseTranspose(world);
 			worldViewProj = world * viewProj;
-			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&worldViewProj));
+			mfxWorldViewProj->SetMatrix(reinterpret_cast<const float*>(&worldViewProj));
+			mfxWorld->SetMatrix(reinterpret_cast<const float*>(&world));
+			mfxWorldInvTranspose->SetMatrix(reinterpret_cast<const float*>(&worldInvTrans));
+			mfxMaterial->SetRawValue(&mWavesMat, 0, sizeof(mWavesMat));
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(3*waves.TriangleCount(), 0, 0);
 
 
-			context->RSSetState(0);
 		}
 
 		DX::ThrowIfFailed(device_.SwapChain()->Present(0, 0));

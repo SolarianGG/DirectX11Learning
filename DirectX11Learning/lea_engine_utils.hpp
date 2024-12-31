@@ -26,6 +26,11 @@ namespace lea {
 
 		struct Vertex2 {
 			XMFLOAT3 pos;
+			XMFLOAT3 norm;
+		};
+
+		struct Vertex3 {
+			XMFLOAT3 pos;
 			XMFLOAT3 normal;
 			XMFLOAT2 tex0;
 			XMFLOAT2 tex1;
@@ -37,7 +42,7 @@ namespace lea {
 
 			struct Vertex
 			{
-				Vertex() {}
+				Vertex() { std::memset(this, 0, sizeof(*this)); }
 				Vertex(const DirectX::XMFLOAT3& p, const DirectX::XMFLOAT3& n, const DirectX::XMFLOAT3& t, const DirectX::XMFLOAT2& uv)
 					: Position(p), Normal(n), TangentU(t), TexC(uv) {
 				}
@@ -88,6 +93,29 @@ namespace lea {
 				return a + RandF() * (b - a);
 			}
 
+			template<typename T>
+			static T Max(const T& a, const T& b)
+			{
+				return a > b ? a : b;
+			}
+
+			template<typename T>
+			static T Min(const T& a, const T& b)
+			{
+				return a < b ? a : b;
+			}
+
+			template<typename T>
+			static T Lerp(const T& a, const T& b, float t)
+			{
+				return a + (b - a) * t;
+			}
+
+			template<typename T>
+			static T Clamp(const T& x, const T& low, const T& high)
+			{
+				return x < low ? low : (x > high ? high : x);
+			}
 
 			static float AngleFromXY(float x, float y)
 			{

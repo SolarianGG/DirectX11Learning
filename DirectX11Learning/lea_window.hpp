@@ -59,6 +59,10 @@ namespace lea {
 
 		HWND HWND() const { return hwnd_; }
 
+		SDL_Window* SDL_WINDOW() const { return window_; }
+
+		SDL_Event SDL_EVENT() const { return e_; }
+
 		int Width() const;
 
 		int Height() const;
