@@ -22,8 +22,8 @@ int WINAPI wWinMain(
         app->Run();
     }
     catch (std::exception& e) {
-        std::cout << e.what() << std::endl;
-        Sleep(100000);
+        OutputDebugStringA(e.what());
+        Sleep(1000);
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;

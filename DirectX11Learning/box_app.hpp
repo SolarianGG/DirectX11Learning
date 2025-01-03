@@ -18,9 +18,14 @@ namespace lea {
 		ComPtr<ID3DX11EffectMatrixVariable> mWorldViewProj_;
 		ComPtr<ID3DX11EffectMatrixVariable> mWorld_;
 		ComPtr<ID3DX11EffectMatrixVariable> mWorldInverseTranspose_;
+		ComPtr<ID3DX11EffectMatrixVariable> mTexTransform_;
 		ComPtr<ID3DX11EffectVariable> mMaterial_;
 		ComPtr<ID3DX11EffectVariable> mPointLight_;
 		ComPtr<ID3DX11EffectVariable> mDirectionalLight_;
+		ComPtr<ID3DX11EffectShaderResourceVariable> mDiffuseMap_;
+
+		std::vector<ComPtr<ID3D11ShaderResourceView>> mBoxTextures_;
+		UINT currentAnimationFrame = 0;
 
 		ComPtr<ID3DX11EffectVectorVariable> mEyePosition_;
 
@@ -39,6 +44,7 @@ namespace lea {
 		XMFLOAT4X4 mWorld;
 		XMFLOAT4X4 mView;
 		XMFLOAT4X4 mProj;
+		XMFLOAT4X4 mTexTransform;
 
 		float m_Theta;
 		float m_Phi;
@@ -58,5 +64,8 @@ namespace lea {
 
 		void CreateGeometryBuffers();
 		void CreateInputLayout();
+
+		void InitFX();
+		void LoadTextures();
 	};
 }

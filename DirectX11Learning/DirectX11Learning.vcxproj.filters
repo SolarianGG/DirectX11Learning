@@ -127,5 +127,17 @@
     <FxCompile Include="shapes_light.fx">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="box_text.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="texture_helper.fxh">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="waves_textured.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shapes_light_tex.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

@@ -10,12 +10,12 @@
 #include "lea_engine_utils.hpp"
 #include "DXHelper.hpp"
 
-using lea::utils::Vertex2;
+using lea::utils::Vertex3;
 using namespace DirectX;
 
 namespace lea {
 	WavesApp::WavesApp()
-		: App(), mGridIndexCount(0), mTheta(1.5f * XM_PI), mPhi(0.1f * XM_PI), mRadius(200.0f)
+		: App(), mGridIndexCount(0), mTheta(1.5f * XM_PI), mPhi(0.1f * XM_PI), mRadius(200.0f), mWaterTexOffset(0.0f, 0.0f)
 	{
 		m_LastMousePos.first = 0;
 		m_LastMousePos.second = 0;
@@ -26,6 +26,7 @@ namespace lea {
 		XMStoreFloat4x4(&mGridWaves, I);
 		XMStoreFloat4x4(&mView, I);
 		XMStoreFloat4x4(&mProj, I);
+		XMStoreFloat4x4(&mWavesTexTransform, I);
 
 		XMMATRIX wavesOffset = XMMatrixTranslation(0.0f, -3.0f, 0.0f);
 		XMStoreFloat4x4(&mGridWaves, wavesOffset);
@@ -44,8 +45,8 @@ namespace lea {
 		mPointLight.Range = 25.0f;
 
 		// Spot light--position and direction changed every frame to animate in UpdateScene function.
-		mSpotLight.Ambient = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-		mSpotLight.Diffuse = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
+		mSpotLight.Ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		mSpotLight.Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 		mSpotLight.Specular = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 		mSpotLight.Att = XMFLOAT3(1.0f, 0.0f, 0.0f);
 		mSpotLight.Spot = 96.0f;
@@ -59,22 +60,16 @@ namespace lea {
 		mWavesMat.Diffuse = XMFLOAT4(0.137f, 0.42f, 0.556f, 1.0f);
 		mWavesMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 96.0f);
 
+
+		XMMATRIX grassTexScale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
+		XMStoreFloat4x4(&mGrassTexTransform, grassTexScale);
 	}
 	void WavesApp::Init()
 	{
 		waves.Init(200, 200, 0.8f, 0.03f, 3.25f, 0.4f);
 
-		effect_ = device_.CreateEffect(L"simple_light.fx");
-		effectTechnique_ = effect_->GetTechniqueByName("LightTech");
-
-		mfxWorldViewProj = effect_->GetVariableByName("gWorldViewProj")->AsMatrix();
-		mfxWorld = effect_->GetVariableByName("gWorld")->AsMatrix();
-		mfxWorldInvTranspose = effect_->GetVariableByName("gWorldInvTranspose")->AsMatrix();
-		mfxEyePosW = effect_->GetVariableByName("gEyePosW")->AsVector();
-		mfxDirLight = effect_->GetVariableByName("gDirLight");
-		mfxPointLight = effect_->GetVariableByName("gPointLight");
-		mfxSpotLight = effect_->GetVariableByName("gSpotLight");
-		mfxMaterial = effect_->GetVariableByName("gMaterial");
+		InitFX();
+		LoadTextures();
 
 		CreateInputLayout();
 		BuildLandGeometryBuffers();
@@ -173,11 +168,14 @@ namespace lea {
 		D3D11_MAPPED_SUBRESOURCE mappedData;
 		DX::ThrowIfFailed(device_.Context()->Map(wavesVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedData));
 
-		Vertex2* v = reinterpret_cast<Vertex2*>(mappedData.pData);
+		Vertex3* v = reinterpret_cast<Vertex3*>(mappedData.pData);
 		for (UINT i = 0; i < waves.VertexCount(); ++i)
 		{
 			v[i].pos = waves[i];
 			v[i].norm = waves.Normal(i);
+
+			v[i].tex.x = 0.5f + waves[i].x / waves.Width();
+			v[i].tex.y = 0.5f - waves[i].z / waves.Depth();
 		}
 
 		device_.Context()->Unmap(wavesVertexBuffer_.Get(), 0);
@@ -199,6 +197,13 @@ namespace lea {
 		mSpotLight.Position = mEyePosW;
 		XMStoreFloat3(&mSpotLight.Direction, XMVector3Normalize(target - pos));
 
+		XMMATRIX wavesScale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
+		mWaterTexOffset.y += 0.05f * deltaTime;
+		mWaterTexOffset.x += 0.1f * deltaTime;
+		XMMATRIX wavesTranslation = XMMatrixTranslation(mWaterTexOffset.x, mWaterTexOffset.y, 0.0f);
+
+		XMStoreFloat4x4(&mWavesTexTransform, wavesScale * wavesTranslation);
+
 	}
 	void WavesApp::BuildLandGeometryBuffers()
 	{
@@ -217,7 +222,7 @@ namespace lea {
 		// sandy looking beaches, grassy low hills, and snow mountain peaks.
 		//
 
-		std::vector<Vertex2> vertices(grid.Vertices.size());
+		std::vector<Vertex3> vertices(grid.Vertices.size());
 		for (size_t i = 0; i < grid.Vertices.size(); ++i)
 		{
 			XMFLOAT3 p = grid.Vertices[i].Position;
@@ -226,11 +231,12 @@ namespace lea {
 
 			vertices[i].pos = p;
 			vertices[i].norm = GetHillNormal(p.x, p.z);
+			vertices[i].tex = grid.Vertices[i].TexC;
 		}
 
 		D3D11_BUFFER_DESC vbd{};
 		vbd.Usage = D3D11_USAGE_IMMUTABLE;
-		vbd.ByteWidth = sizeof(Vertex2) * grid.Vertices.size();
+		vbd.ByteWidth = sizeof(Vertex3) * grid.Vertices.size();
 		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbd.CPUAccessFlags = 0;
 		vbd.MiscFlags = 0;
@@ -257,7 +263,7 @@ namespace lea {
 	{
 		D3D11_BUFFER_DESC vbd{};
 		vbd.Usage = D3D11_USAGE_DYNAMIC;
-		vbd.ByteWidth = sizeof(Vertex2) * waves.VertexCount();
+		vbd.ByteWidth = sizeof(Vertex3) * waves.VertexCount();
 		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		vbd.MiscFlags = 0;
@@ -304,6 +310,7 @@ namespace lea {
 		D3D11_INPUT_ELEMENT_DESC inputs[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		};
 
 		D3DX11_PASS_DESC passDesc;
@@ -331,6 +338,30 @@ namespace lea {
 		return n;
 	}
 
+	inline void WavesApp::InitFX()
+	{
+		effect_ = device_.CreateEffect(L"waves_textured.fx");
+		effectTechnique_ = effect_->GetTechniqueByName("TextLightTech");
+
+		mfxWorldViewProj = effect_->GetVariableByName("gWorldProjectView")->AsMatrix();
+		mfxWorld = effect_->GetVariableByName("gWorld")->AsMatrix();
+		mfxWorldInvTranspose = effect_->GetVariableByName("gWorldInverseTranspose")->AsMatrix();
+		mfxEyePosW = effect_->GetVariableByName("gEyePosW")->AsVector();
+		mfxDirLight = effect_->GetVariableByName("gDirLight");
+		mfxPointLight = effect_->GetVariableByName("gPointLight");
+		mfxSpotLight = effect_->GetVariableByName("gSpotLight");
+		mfxMaterial = effect_->GetVariableByName("gMaterial");
+		mfxTexTransform = effect_->GetVariableByName("gTexTransform")->AsMatrix();
+
+		mfxTexture = effect_->GetVariableByName("gDiffuseMap")->AsShaderResource();
+	}
+
+	inline void WavesApp::LoadTextures()
+	{
+		grassTexture_ = device_.CreateTexture(L"Textures/grass.dds");
+		wavesTexture_ = device_.CreateTexture(L"Textures/water1.dds");
+	}
+
 	void WavesApp::DrawScene()
 	{
 		auto context = device_.Context();
@@ -338,7 +369,7 @@ namespace lea {
 		context->ClearRenderTargetView(device_.RenderTargetView(), reinterpret_cast<const float*>(&Colors::MidnightBlue));
 		context->ClearDepthStencilView(device_.DepthStencilView(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
-		UINT strides = sizeof(Vertex2);
+		UINT strides = sizeof(Vertex3);
 		UINT offset = 0;
 
 		XMMATRIX view = XMLoadFloat4x4(&mView);
@@ -361,11 +392,14 @@ namespace lea {
 			XMMATRIX world = XMLoadFloat4x4(&mGridWorld);
 			XMMATRIX worldInvTrans = lea::utils::MathHelper::InverseTranspose(world);
 			XMMATRIX worldViewProj = world * viewProj;
+			XMMATRIX texTransform = XMLoadFloat4x4(&mGrassTexTransform);
 
 			mfxWorldViewProj->SetMatrix(reinterpret_cast<const float*>(&worldViewProj));
 			mfxWorld->SetMatrix(reinterpret_cast<const float*>(&world));
 			mfxWorldInvTranspose->SetMatrix(reinterpret_cast<const float*>(&worldInvTrans));
 			mfxMaterial->SetRawValue(&mLandMat, 0, sizeof(mLandMat));
+			mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&texTransform));
+			mfxTexture->SetResource(grassTexture_.Get());
 
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mGridIndexCount, 0, 0);
@@ -381,10 +415,12 @@ namespace lea {
 			mfxWorld->SetMatrix(reinterpret_cast<const float*>(&world));
 			mfxWorldInvTranspose->SetMatrix(reinterpret_cast<const float*>(&worldInvTrans));
 			mfxMaterial->SetRawValue(&mWavesMat, 0, sizeof(mWavesMat));
+			texTransform = XMLoadFloat4x4(&mWavesTexTransform);
+			mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&texTransform));
+			mfxTexture->SetResource(wavesTexture_.Get());
+			
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(3*waves.TriangleCount(), 0, 0);
-
-
 		}
 
 		DX::ThrowIfFailed(device_.SwapChain()->Present(0, 0));

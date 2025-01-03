@@ -29,7 +29,14 @@ namespace lea {
 			XMFLOAT3 norm;
 		};
 
+
 		struct Vertex3 {
+			XMFLOAT3 pos;
+			XMFLOAT3 norm;
+			XMFLOAT2 tex;
+		};
+
+		struct Vertex4 {
 			XMFLOAT3 pos;
 			XMFLOAT3 normal;
 			XMFLOAT2 tex0;

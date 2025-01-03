@@ -27,10 +27,18 @@ namespace lea {
 
 		ComPtr<ID3D11InputLayout> inputLayout_;
 
+		ComPtr<ID3D11ShaderResourceView> grassTexture_;
+		ComPtr<ID3D11ShaderResourceView> wavesTexture_;
+
 		Waves waves;
 
 		XMFLOAT4X4 mGridWorld;
 		XMFLOAT4X4 mGridWaves;
+
+		XMFLOAT2 mWaterTexOffset;
+
+		XMFLOAT4X4 mGrassTexTransform;
+		XMFLOAT4X4 mWavesTexTransform;
 
 		UINT mGridIndexCount;
 
@@ -58,6 +66,8 @@ namespace lea {
 		ComPtr<ID3DX11EffectVariable> mfxPointLight;
 		ComPtr<ID3DX11EffectVariable> mfxSpotLight;
 		ComPtr<ID3DX11EffectVariable> mfxMaterial;
+		ComPtr<ID3DX11EffectMatrixVariable> mfxTexTransform;
+		ComPtr<ID3DX11EffectShaderResourceVariable> mfxTexture;
 
 
 
@@ -74,5 +84,8 @@ namespace lea {
 
 		float GetHeight(float x, float z) const;
 		XMFLOAT3 GetHillNormal(float x, float z) const;
+
+		void InitFX();
+		void LoadTextures();
 	};
 }

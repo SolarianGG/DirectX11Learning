@@ -7,6 +7,8 @@
 
 #include <d3dcompiler.h>
 #include <DirectXColors.h>
+#include <DDSTextureLoader.h>
+#include <WICTextureLoader.h>
 
 #include "DXHelper.hpp"
 #include "lea_timer.hpp"
@@ -252,6 +254,22 @@ inline void lea::LeaDevice::SetupViewport()
     context_->RSSetViewports(1, &vp);
 
     debugger_->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
+}
+
+ID3D11ShaderResourceView* lea::LeaDevice::CreateTexture(std::wstring_view texture_file_name)
+{
+    ID3D11ShaderResourceView* shaderResourceView;
+    if (texture_file_name.ends_with(L".dds"))
+    {
+        OutputDebugString(L"DDS texture has been provided");
+        DX::ThrowIfFailed(CreateDDSTextureFromFile(device_.Get(), texture_file_name.data(), nullptr, &shaderResourceView));
+    }
+    else {
+        OutputDebugString(L"NOT DDS texture has been provided");
+        DX::ThrowIfFailed(CreateWICTextureFromFile(device_.Get(), texture_file_name.data(), nullptr, &shaderResourceView));
+    }
+    assert(shaderResourceView != nullptr);
+    return shaderResourceView;
 }
 
 ID3DX11Effect* lea::LeaDevice::CreateEffect(const WCHAR* szFileName)

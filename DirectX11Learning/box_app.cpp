@@ -1,14 +1,16 @@
 #include "box_app.hpp"
 
 #include <algorithm>
+#include <format>
 
 #include <DirectXMath.h>
 #include <DirectXColors.h>
 
+
 #include "lea_timer.hpp"
 #include "lea_engine_utils.hpp"
 #include "DXHelper.hpp"
-using lea::utils::Vertex2;
+using lea::utils::Vertex3;
 using namespace DirectX;
 
 lea::BoxApp::BoxApp()
@@ -22,42 +24,31 @@ lea::BoxApp::BoxApp()
 	XMStoreFloat4x4(&mWorld, I);
 	XMStoreFloat4x4(&mView, I);
 	XMStoreFloat4x4(&mProj, I);
+	XMStoreFloat4x4(&mTexTransform, I);
 
-	mBoxMaterial.Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.f);
-	mBoxMaterial.Diffuse = XMFLOAT4(0.f, 0.8f, 0.2f, 1.f);
-	mBoxMaterial.Specular = XMFLOAT4(1.f, 1.f, 1.f, 256.f);
+	mBoxMaterial.Ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.f);
+	mBoxMaterial.Diffuse = XMFLOAT4(1.f, 1.0f, 1.0f, 1.f);
+	mBoxMaterial.Specular = XMFLOAT4(1.f, 1.f, 1.f, 32.f);
 
-	mPointLight.Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.f);
-	mPointLight.Diffuse = XMFLOAT4(1.f, 0.8f, 0.6f, 1.f);
+	mPointLight.Ambient = XMFLOAT4(0.35f, 0.35f, 0.35f, 1.f);
+	mPointLight.Diffuse = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.f);
 	mPointLight.Specular = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
 	mPointLight.Position = XMFLOAT3(0.f, 3.f, 0.f);
 	mPointLight.Range = 20.f;
 	mPointLight.Att = XMFLOAT3(0.f, 0.1f, 0.01f);
 
-
-
 	mEyePosition = XMFLOAT3(0.f, 0.f, 0.f);
 
 	mDirectionalLight.Ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.f);
-	mDirectionalLight.Diffuse = XMFLOAT4(0.8f, 0.0f, 1.0f, 1.f);
+	mDirectionalLight.Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.f);
 	mDirectionalLight.Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.f);
 	mDirectionalLight.Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
 	
 }
 void lea::BoxApp::Init()
 {
-	mEffect_ = device_.CreateEffect(L"box_light.fx");
-	mEffectTechnique_ = mEffect_->GetTechniqueByName("LightTech");
-
-	mWorldViewProj_ = mEffect_->GetVariableByName("gWorldProjectView")->AsMatrix();
-	mWorld_ = mEffect_->GetVariableByName("gWorld")->AsMatrix();
-	mWorldInverseTranspose_ = mEffect_->GetVariableByName("gWorldInverseTranspose")->AsMatrix();
-
-	mEyePosition_ = mEffect_->GetVariableByName("gEyePosW")->AsVector();
-
-	mMaterial_ = mEffect_->GetVariableByName("gMat");
-	mPointLight_ = mEffect_->GetVariableByName("gPointLight");
-	mDirectionalLight_ = mEffect_->GetVariableByName("gDirectionalLight");
+	InitFX();
+	LoadTextures();
 
 	CreateGeometryBuffers();
 	CreateInputLayout();
@@ -73,7 +64,7 @@ void lea::BoxApp::Init()
 
 	DX::ThrowIfFailed(device_.Device()->CreateRasterizerState(&rasterizerDesc, mRastState_.GetAddressOf()));
 
-	UINT stride = sizeof(Vertex2);
+	UINT stride = sizeof(Vertex3);
 	UINT offset1 = 0;
 	device_.Context()->IASetVertexBuffers(0, 1, mVertexBuffer_.GetAddressOf(), &stride, &offset1);
 	device_.Context()->IASetIndexBuffer(mIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
@@ -109,7 +100,7 @@ void lea::BoxApp::PollEvents()
 			// Update the camera radius based on input.
 			m_Radius += dx - dy;
 			// Restrict the radius.
-			m_Radius = std::clamp(m_Radius, 3.0f, 15.0f);
+			m_Radius = std::clamp(m_Radius, 1.0f, 15.0f);
 		}
 
 		mLastMousePos.first = event.mouse_x;
@@ -119,6 +110,7 @@ void lea::BoxApp::PollEvents()
 
 void lea::BoxApp::UpdateScene(float deltaTime)
 {
+	static float frameTime = 0.0f;
 	float x = m_Radius * sinf(m_Phi) * cosf(m_Theta);
 	float z = m_Radius * sinf(m_Phi) * sinf(m_Theta);
 	float y = m_Radius * cosf(m_Phi);
@@ -132,6 +124,14 @@ void lea::BoxApp::UpdateScene(float deltaTime)
 	
 	mPointLight.Position.x = 5.0f * cosf(XM_2PI / 5.0f * TIMER.TotalTime());
 	mPointLight.Position.z = 5.0f * sinf(XM_2PI / 5.0f * TIMER.TotalTime());
+
+	frameTime += deltaTime;
+	if (frameTime >= 1.f / 30)
+	{
+		frameTime -= 1.f / 30;
+		currentAnimationFrame++;
+		currentAnimationFrame %= 120;
+	}
 }
 
 void lea::BoxApp::DrawScene()
@@ -146,17 +146,20 @@ void lea::BoxApp::DrawScene()
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
 	XMMATRIX worldFinal = world*view*proj;
 
-	XMVECTOR det = XMMatrixDeterminant(world);
-	XMMATRIX worldInverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+	XMMATRIX worldInverseTranspose = lea::utils::MathHelper::InverseTranspose(world);
 	
 	mWorldViewProj_->SetMatrix(reinterpret_cast<const float*>(&worldFinal));
 	mWorld_->SetMatrix(reinterpret_cast<const float*>(&world));
 	mWorldInverseTranspose_->SetMatrix(reinterpret_cast<const float*>(&worldInverseTranspose));
+	mTexTransform_->SetMatrix(reinterpret_cast<const float*>(&mTexTransform));
+
 	mMaterial_->SetRawValue(reinterpret_cast<const void*>(&mBoxMaterial), 0, sizeof(mBoxMaterial));
 	mPointLight_->SetRawValue(reinterpret_cast<const void*>(&mPointLight), 0, sizeof(mPointLight));
 	mDirectionalLight_->SetRawValue(reinterpret_cast<const void*>(&mDirectionalLight), 0, sizeof(mDirectionalLight));
 
 	mEyePosition_->SetFloatVector(reinterpret_cast<const float*>(&mEyePosition));
+
+	mDiffuseMap_->SetResource(mBoxTextures_[currentAnimationFrame].Get());
 		
 	D3DX11_TECHNIQUE_DESC techDesc;
 	mEffectTechnique_->GetDesc(&techDesc);
@@ -176,90 +179,34 @@ void lea::BoxApp::DrawScene()
 
 void lea::BoxApp::CreateGeometryBuffers()
 {
-	Vertex2 vertices[] =
+	using lea::utils::GeometryGenerator;
+
+	GeometryGenerator geoGen;
+
+	GeometryGenerator::MeshData boxMeshData;
+
+	geoGen.CreateBox(1.0f, 1.0f, 1.0f, boxMeshData);
+
+	std::vector<Vertex3> vertices(boxMeshData.Vertices.size());
+
+	for (UINT i = 0; i < boxMeshData.Vertices.size(); ++i)
 	{
-		{XMFLOAT3(-.5f, -.5f, -.5f), XMFLOAT3(0.f, 0.f, 0.f)},
-		{XMFLOAT3(-.5f, +.5f, -.5f), XMFLOAT3(0.f, 0.f, 0.f)},
-		{XMFLOAT3(+.5f, +.5f, -.5f), XMFLOAT3(0.f, 0.f, 0.f)},
-		{XMFLOAT3(+.5f, -.5f, -.5f), XMFLOAT3(0.f, 0.f, 0.f)},
-		{XMFLOAT3(-.5f, -.5f, +.5f), XMFLOAT3(0.f, 0.f, 0.f)},
-		{XMFLOAT3(-.5f, +.5f, +.5f), XMFLOAT3(0.f, 0.f, 0.f)},
-		{XMFLOAT3(+.5f, +.5f, +.5f), XMFLOAT3(0.f, 0.f, 0.f)},
-		{XMFLOAT3(+.5f, -.5f, +.5f), XMFLOAT3(0.f, 0.f, 0.f)}
-	};
-	UINT verticesSize = ARRAYSIZE(vertices);
-
-	UINT indexes[] = {
-		// front face
-		0, 1, 2,
-		0, 2, 3,
-		// back face
-		4, 6, 5,
-		4, 7, 6,
-		// left face
-		4, 5, 1,
-		4, 1, 0,
-		// right face
-		3, 2, 6,
-		3, 6, 7,
-		// top face
-	   1, 5, 6,
-		1, 6, 2,
-		// bottom face
-		4, 0, 3,
-		4, 3, 7
-	};
-
-	mBoxIndexCount = ARRAYSIZE(indexes);
-
-	for (UINT i = 0; i < mBoxIndexCount / 3; ++i)
-	{
-		UINT i0 = indexes[i * 3 + 0];
-		UINT i1 = indexes[i * 3 + 1];
-		UINT i2 = indexes[i * 3 + 2];
-
-		Vertex2& v0 = vertices[i0];
-		Vertex2& v1 = vertices[i1];
-		Vertex2& v2 = vertices[i2];
-
-		XMVECTOR v0Pos = XMLoadFloat3(&v0.pos);
-		XMVECTOR v1Pos = XMLoadFloat3(&v1.pos);
-		XMVECTOR v2Pos = XMLoadFloat3(&v2.pos);
-
-		XMVECTOR e0 = v1Pos - v0Pos;
-		XMVECTOR e1 = v2Pos - v0Pos;
-		XMVECTOR faceNormalVec = XMVector3Cross(e0, e1);
-		
-		XMVECTOR v0Norm = XMLoadFloat3(&v0.norm);
-		XMVECTOR v1Norm = XMLoadFloat3(&v1.norm);
-		XMVECTOR v2Norm = XMLoadFloat3(&v2.norm);
-
-		v0Norm += faceNormalVec;
-		v1Norm += faceNormalVec;
-		v2Norm += faceNormalVec;
-
-		XMStoreFloat3(&v0.norm, v0Norm);
-		XMStoreFloat3(&v1.norm, v1Norm);
-		XMStoreFloat3(&v2.norm, v2Norm);
+		vertices[i].pos = boxMeshData.Vertices[i].Position;
+		vertices[i].norm = boxMeshData.Vertices[i].Normal;
+		vertices[i].tex = boxMeshData.Vertices[i].TexC;
 	}
-
-	for (UINT i = 0; i < verticesSize; ++i)
-	{
-		XMVECTOR normVec = XMLoadFloat3(&vertices[i].norm);
-		XMStoreFloat3(&vertices[i].norm, XMVector3Normalize(normVec));
-	}
-
 
 	D3D11_BUFFER_DESC vertexBufferDesc{};
 	vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
-	vertexBufferDesc.ByteWidth = sizeof(Vertex2) * verticesSize;
+	vertexBufferDesc.ByteWidth = sizeof(Vertex3) * vertices.size();
 	vertexBufferDesc.CPUAccessFlags = 0;
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
 	D3D11_SUBRESOURCE_DATA vertexSubData{};
-	vertexSubData.pSysMem = vertices;
+	vertexSubData.pSysMem = vertices.data();
 	DX::ThrowIfFailed(device_.Device()->CreateBuffer(&vertexBufferDesc, &vertexSubData, mVertexBuffer_.GetAddressOf()));
 
+	mBoxIndexCount = boxMeshData.Indices.size();
 
 	D3D11_BUFFER_DESC indexBufferDesc{};
 	indexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
@@ -268,7 +215,7 @@ void lea::BoxApp::CreateGeometryBuffers()
 	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
 	D3D11_SUBRESOURCE_DATA indexSubData{};
-	indexSubData.pSysMem = indexes;
+	indexSubData.pSysMem = boxMeshData.Indices.data();
 	DX::ThrowIfFailed(device_.Device()->CreateBuffer(&indexBufferDesc, &indexSubData, mIndexBuffer_.GetAddressOf()));
 }
 
@@ -277,6 +224,7 @@ void lea::BoxApp::CreateInputLayout()
 	D3D11_INPUT_ELEMENT_DESC inputs[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
 	};
 
 	D3DX11_PASS_DESC passDesc;
@@ -285,4 +233,32 @@ void lea::BoxApp::CreateInputLayout()
 		device_.Device()->CreateInputLayout
 		(inputs, ARRAYSIZE(inputs), passDesc.pIAInputSignature, passDesc.IAInputSignatureSize, mIputLayout_.GetAddressOf()));
 
+}
+
+inline void lea::BoxApp::InitFX()
+{
+	mEffect_ = device_.CreateEffect(L"box_text.fx");
+	mEffectTechnique_ = mEffect_->GetTechniqueByName("TextLightTech");
+
+	mWorldViewProj_ = mEffect_->GetVariableByName("gWorldProjectView")->AsMatrix();
+	mWorld_ = mEffect_->GetVariableByName("gWorld")->AsMatrix();
+	mWorldInverseTranspose_ = mEffect_->GetVariableByName("gWorldInverseTranspose")->AsMatrix();
+	mTexTransform_ = mEffect_->GetVariableByName("gTexTransform")->AsMatrix();
+
+	mEyePosition_ = mEffect_->GetVariableByName("gEyePosW")->AsVector();
+
+	mMaterial_ = mEffect_->GetVariableByName("gMat");
+	mPointLight_ = mEffect_->GetVariableByName("gPointLight");
+	mDirectionalLight_ = mEffect_->GetVariableByName("gDirectionalLight");
+	mDiffuseMap_ = mEffect_->GetVariableByName("gDiffuseMap")->AsShaderResource();
+}
+
+inline void lea::BoxApp::LoadTextures()
+{
+	mBoxTextures_.reserve(120);
+	for (UINT i = 0; i < 120; ++i)
+	{
+		auto pathStr = std::format(L"Textures/FireAnim/Fire{:03d}.bmp", i + 1);
+		mBoxTextures_.push_back(device_.CreateTexture(pathStr));
+	}
 }

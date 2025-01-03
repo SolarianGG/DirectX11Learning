@@ -9,13 +9,10 @@ using namespace DirectX;
 using UINT = uint32_t;
 
 namespace lea {
-	class Waves {
+	class Waves
+	{
 	public:
 		Waves();
-		Waves(const Waves& other) = delete;
-		Waves& operator=(const Waves& other) = delete;
-		Waves(Waves&& other) noexcept = delete;
-		Waves& operator=(Waves&& other) noexcept = delete;
 		~Waves();
 
 		UINT RowCount()const;
@@ -53,11 +50,10 @@ namespace lea {
 		float mTimeStep;
 		float mSpatialStep;
 
-		XMFLOAT3* mPrevSolution;
-		XMFLOAT3* mCurrSolution;
-		XMFLOAT3* mNormals;
-		XMFLOAT3* mTangentX;
-
-
+		DirectX::XMFLOAT3* mPrevSolution;
+		DirectX::XMFLOAT3* mCurrSolution;
+		DirectX::XMFLOAT3* mNormals;
+		DirectX::XMFLOAT3* mTangentX;
 	};
+
 }

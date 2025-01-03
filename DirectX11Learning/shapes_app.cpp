@@ -15,7 +15,7 @@
 #include "imgui_impl_sdl2.h"
 
 #include "DXHelper.hpp"
-using lea::utils::Vertex2;
+using lea::utils::Vertex3;
 using namespace DirectX;
 
 namespace lea {
@@ -30,6 +30,12 @@ namespace lea {
 		XMStoreFloat4x4(&mGridWorld, I);
 		XMStoreFloat4x4(&mView, I);
 		XMStoreFloat4x4(&mProj, I);
+		XMStoreFloat4x4(&mBoxTexTransform, I);
+		XMStoreFloat4x4(&mCylinderTexTransform, I);
+		XMStoreFloat4x4(&mSphereTexTransform, I);
+		XMStoreFloat4x4(&mSkullTexTransform, I);
+
+		XMStoreFloat4x4(&mFloorTexTransform, I * XMMatrixScaling(8.f, 8.f, 8.f));
 
 		XMMATRIX boxScale = XMMatrixScaling(2.0f, 1.0f, 2.0f);
 		XMMATRIX boxOffset = XMMatrixTranslation(0.0f, 0.5f, 0.0f);
@@ -84,17 +90,8 @@ namespace lea {
 	}
 	void ShapesApp::Init()
 	{
-		effect_ = device_.CreateEffect(L"shapes_light.fx");
-		effectTechnique_ = effect_->GetTechniqueByName("LightTech");
-
-		worldMatrix_ = effect_->GetVariableByName("gWorld")->AsMatrix();
-		worldViewProjectionMatrix_ = effect_->GetVariableByName("gWorldProjectView")->AsMatrix();
-		worldInverseTransposeMatrix_ = effect_->GetVariableByName("gWorldInverseTranspose")->AsMatrix();
-
-		mShapeMaterial_ = effect_->GetVariableByName("gMat");
-		mDirectionalLight_ = effect_->GetVariableByName("gDirectionalLight");
-
-		mEyePosW_ = effect_->GetVariableByName("gEyePosW")->AsVector();
+		InitFX();
+		LoadTextures();
 
 		CreateGeometryBuffers();
 		CreateInputLayout();
@@ -109,17 +106,16 @@ namespace lea {
 		rastDesc.FillMode = D3D11_FILL_SOLID;
 		rastDesc.CullMode = D3D11_CULL_BACK;
 		rastDesc.FrontCounterClockwise = false;
-		rastDesc.ScissorEnable = false;
+		rastDesc.ScissorEnable = false; // SET TO TRUE FOR SCISSORS 
 
 		ComPtr<ID3D11RasterizerState> rastState;
 		DX::ThrowIfFailed(device_.Device()->CreateRasterizerState(&rastDesc, rastState.GetAddressOf()));
 
 		device_.Context()->RSSetState(rastState.Get());
 
-		UINT stride = sizeof(Vertex2);
+		UINT stride = sizeof(Vertex3);
 		UINT offset = 0;
-		ID3D11Buffer* const buffers[] = { vertexBuffer_.Get() };
-		device_.Context()->IASetVertexBuffers(0, 1, buffers, &stride, &offset);
+		device_.Context()->IASetVertexBuffers(0, 1, vertexBuffer_.GetAddressOf(), &stride, &offset);
 		device_.Context()->IASetIndexBuffer(indexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
 
 		XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * XM_PI,
@@ -247,31 +243,35 @@ namespace lea {
 		// vertices of all the meshes into one vertex buffer.
 		//
 
-		std::vector<Vertex2> vertices(totalVertexCount);
+		std::vector<Vertex3> vertices(totalVertexCount);
 
 		UINT k = 0;
 		for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].pos = box.Vertices[i].Position;
 			vertices[k].norm = box.Vertices[i].Normal;
+			vertices[k].tex = box.Vertices[i].TexC;
 		}
 
 		for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].pos = grid.Vertices[i].Position;
 			vertices[k].norm = grid.Vertices[i].Normal;
+			vertices[k].tex = grid.Vertices[i].TexC;
 		}
 
 		for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].pos = sphere.Vertices[i].Position;
 			vertices[k].norm = sphere.Vertices[i].Normal;
+			vertices[k].tex = sphere.Vertices[i].TexC;
 		}
 
 		for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
 		{
 			vertices[k].pos = cylinder.Vertices[i].Position;
 			vertices[k].norm = cylinder.Vertices[i].Normal;
+			vertices[k].tex = cylinder.Vertices[i].TexC;
 		}
 
 		for (size_t i = 0; i < skullVertices.size(); ++i, ++k)
@@ -281,7 +281,7 @@ namespace lea {
 
 		D3D11_BUFFER_DESC vbd{};
 		vbd.Usage = D3D11_USAGE_IMMUTABLE;
-		vbd.ByteWidth = sizeof(Vertex2) * totalVertexCount;
+		vbd.ByteWidth = sizeof(Vertex3) * totalVertexCount;
 		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vbd.CPUAccessFlags = 0;
 		vbd.MiscFlags = 0;
@@ -316,6 +316,7 @@ namespace lea {
 		D3D11_INPUT_ELEMENT_DESC inputs[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		};
 
 		D3DX11_PASS_DESC passDesc;
@@ -345,13 +346,17 @@ namespace lea {
 			XMMATRIX world = XMLoadFloat4x4(&mGridWorld);
 			XMMATRIX finalMatrix = world * viewProj;
 			
-			XMVECTOR det = XMMatrixDeterminant(world);
-			XMMATRIX inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+			XMMATRIX inverseTranspose = lea::utils::MathHelper::InverseTranspose(world);
 
 			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
 			worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
 			worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
 			mShapeMaterial_->SetRawValue(&gridMat, 0, sizeof(gridMat));
+			mEffectTexture_->SetResource(mFloorTexture_.Get());
+
+			XMMATRIX texTransform = XMLoadFloat4x4(&mFloorTexTransform);
+			textureTransform_->SetMatrix(reinterpret_cast<const float*>(&texTransform));
+			
 
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mGridIndexCount, mGridIndexOffset, mGridVertexOffset);
@@ -360,14 +365,16 @@ namespace lea {
 			world = XMLoadFloat4x4(&mBoxWorld);
 			finalMatrix = world * viewProj;
 
-			det = XMMatrixDeterminant(world);
-			inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+			inverseTranspose = lea::utils::MathHelper::InverseTranspose(world);
 
 			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
 			worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
 			worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
 			mShapeMaterial_->SetRawValue(&boxMat, 0, sizeof(boxMat));
+			mEffectTexture_->SetResource(mBoxTexture_.Get());
 
+			texTransform = XMLoadFloat4x4(&mBoxTexTransform);
+			textureTransform_->SetMatrix(reinterpret_cast<const float*>(&texTransform));
 
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mBoxIndexCount, mBoxIndexOffset, mBoxVertexOffset);
@@ -375,47 +382,53 @@ namespace lea {
 			world = XMLoadFloat4x4(&mSkullWorld);
 			finalMatrix = world * viewProj;
 
-			det = XMMatrixDeterminant(world);
-			inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+			inverseTranspose = lea::utils::MathHelper::InverseTranspose(world);
 
 			worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
 			worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
 			worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
 			mShapeMaterial_->SetRawValue(&skullMat, 0, sizeof(skullMat));
+			mEffectTexture_->SetResource(mSkullTexture_.Get());
+
+			texTransform = XMLoadFloat4x4(&mSkullTexTransform);
+			textureTransform_->SetMatrix(reinterpret_cast<const float*>(&texTransform));
 
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(mSkullIndexCount, mSkullIndexOffset, mSkullVertexOffset);
 
-
+			mShapeMaterial_->SetRawValue(&cylinderMat, 0, sizeof(cylinderMat));
+			mEffectTexture_->SetResource(mCylinderTexture_.Get());
+			texTransform = XMLoadFloat4x4(&mCylinderTexTransform);
+			textureTransform_->SetMatrix(reinterpret_cast<const float*>(&texTransform));
 			for (uint32_t j = 0; j < 10; ++j)
 			{
 				world = XMLoadFloat4x4(&mCylWorld[j]);
 				finalMatrix = world * viewProj;
 
-				det = XMMatrixDeterminant(world);
-				inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+				inverseTranspose = lea::utils::MathHelper::InverseTranspose(world);
 
 				worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
 				worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
 				worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
-				mShapeMaterial_->SetRawValue(&cylinderMat, 0, sizeof(cylinderMat));
 
 				effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 				context->DrawIndexed(mCylinderIndexCount, mCylinderIndexOffset, mCylinderVertexOffset);
 			}
 
+			mShapeMaterial_->SetRawValue(&sphereMat, 0, sizeof(sphereMat));
+			mEffectTexture_->SetResource(mSphereTexture_.Get());
+			texTransform = XMLoadFloat4x4(&mSphereTexTransform);
+			textureTransform_->SetMatrix(reinterpret_cast<const float*>(&texTransform));
 			for (uint32_t j = 0; j < 10; ++j)
 			{
 				world = XMLoadFloat4x4(&mSphereWorld[j]);
 				finalMatrix = world * viewProj;
 
-				det = XMMatrixDeterminant(world);
-				inverseTranspose = XMMatrixTranspose(XMMatrixInverse(&det, world));
+				inverseTranspose = lea::utils::MathHelper::InverseTranspose(world);
 
 				worldMatrix_->SetMatrix(reinterpret_cast<const float*>(&world));
 				worldInverseTransposeMatrix_->SetMatrix(reinterpret_cast<const float*>(&inverseTranspose));
 				worldViewProjectionMatrix_->SetMatrix(reinterpret_cast<const float*>(&finalMatrix));
-				mShapeMaterial_->SetRawValue(&sphereMat, 0, sizeof(sphereMat));
 
 				effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 				context->DrawIndexed(mSphereIndexCount, mSphereIndexOffset, mSphereVertexOffset);
@@ -426,7 +439,7 @@ namespace lea {
 		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 		DX::ThrowIfFailed(device_.SwapChain()->Present(0, 0));
 	}
-	std::pair<std::vector<Vertex2>, std::vector<UINT>> ShapesApp::ScanModel(std::wstring_view file_name)
+	std::pair<std::vector<Vertex3>, std::vector<UINT>> ShapesApp::ScanModel(std::wstring_view file_name)
 	{
 		std::ifstream fin(file_name.data());
 
@@ -444,7 +457,7 @@ namespace lea {
 		fin >> ignore >> tcount;
 		fin >> ignore >> ignore >> ignore >> ignore;
 
-		std::vector<Vertex2> vertices(vcount);
+		std::vector<Vertex3> vertices(vcount);
 		for (UINT i = 0; i < vcount; ++i)
 		{
 			fin >> vertices[i].pos.x >> vertices[i].pos.y >> vertices[i].pos.z
@@ -463,6 +476,14 @@ namespace lea {
 		}
 
 		fin.close();
+
+		for (auto& vertex : vertices) {
+			float length = std::sqrt(vertex.pos.x * vertex.pos.x + vertex.pos.y * vertex.pos.y + vertex.pos.z * vertex.pos.z);
+			float u = 0.5f + std::atan2(vertex.pos.z, vertex.pos.x) / (2.0f * XM_PI);
+			float v = 0.5f - std::asin(vertex.pos.y / length) / XM_PI;
+
+			vertex.tex = XMFLOAT2(u, v);
+		}
 
 
 		return { vertices, indices };
@@ -523,5 +544,29 @@ namespace lea {
 
 
 		ImGui::End();
+	}
+	void ShapesApp::LoadTextures()
+	{
+		mFloorTexture_ = device_.CreateTexture(L"Textures/floor.dds");
+		mSphereTexture_ = device_.CreateTexture(L"Textures/stone.dds");
+		mCylinderTexture_ = device_.CreateTexture(L"Textures/bricks.dds");
+		mBoxTexture_ = device_.CreateTexture(L"Textures/WoodCrate01.dds");
+		mSkullTexture_ = device_.CreateTexture(L"Textures/bone.jpg");
+	}
+	void ShapesApp::InitFX()
+	{
+		effect_ = device_.CreateEffect(L"shapes_light_tex.fx");
+		effectTechnique_ = effect_->GetTechniqueByName("TextLightTech");
+
+		worldMatrix_ = effect_->GetVariableByName("gWorld")->AsMatrix();
+		worldViewProjectionMatrix_ = effect_->GetVariableByName("gWorldProjectView")->AsMatrix();
+		worldInverseTransposeMatrix_ = effect_->GetVariableByName("gWorldInverseTranspose")->AsMatrix();
+		textureTransform_ = effect_->GetVariableByName("gTexTransform")->AsMatrix();
+
+		mShapeMaterial_ = effect_->GetVariableByName("gMat");
+		mDirectionalLight_ = effect_->GetVariableByName("gDirectionalLight");
+
+		mEyePosW_ = effect_->GetVariableByName("gEyePosW")->AsVector();
+		mEffectTexture_ = effect_->GetVariableByName("gDiffuseMap")->AsShaderResource();
 	}
 }

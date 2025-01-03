@@ -9,6 +9,8 @@
 #include <d3dxGlobal.h>
 #include <functional>
 
+#include <string_view>
+
 #include "lea_engine_utils.hpp"
 #include "lea_window.hpp"
 
@@ -45,6 +47,7 @@ namespace lea {
 
 		ID3DX11Effect* CreateEffect(const WCHAR* szFileName);
 
+		ID3D11ShaderResourceView* CreateTexture(std::wstring_view texture_file_name);
 		void Clean();
 	private:
 		std::vector<ComPtr<IDXGIAdapter>> GetAdapters();
@@ -64,5 +67,6 @@ namespace lea {
 		void BindRenderTargets();
 
 		void SetupViewport();
+
 	};
 }
