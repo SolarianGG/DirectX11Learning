@@ -150,6 +150,16 @@ inline lea::LeaEvent::Key lea::LeaWindow::MapSDLKeyToLeaKey(SDL_Keycode sdl_key)
     case SDLK_RETURN:             return LeaEvent::KeyEnter;
     case SDLK_ESCAPE:             return LeaEvent::KeyEscape;
     case SDLK_SPACE:              return LeaEvent::KeySpace;
+    case SDLK_1:              return LeaEvent::KeyOne;
+    case SDLK_2:              return LeaEvent::KeyTwo;
+    case SDLK_3:              return LeaEvent::KeyThree;
+    case SDLK_4:              return LeaEvent::KeyFour;
+    case SDLK_5:              return LeaEvent::KeyFive;
+    case SDLK_6:              return LeaEvent::KeySix;
+    case SDLK_7:              return LeaEvent::KeySeven;
+    case SDLK_8:              return LeaEvent::KeyEight;
+    case SDLK_9:              return LeaEvent::KeyNine;
+    case SDLK_0:              return LeaEvent::KeyZero;
     default:                      return LeaEvent::KeyUndefined;
     }
 }

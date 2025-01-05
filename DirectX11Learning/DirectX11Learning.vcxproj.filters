@@ -139,5 +139,8 @@
     <FxCompile Include="shapes_light_tex.fx">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="waves_blended.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

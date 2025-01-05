@@ -17,7 +17,7 @@ int WINAPI wWinMain(
     _In_ LPWSTR lpCmdLine,
     _In_ int nShowCmd)
 {
-    std::unique_ptr<lea::App> app = std::make_unique<lea::ShapesApp>();
+    std::unique_ptr<lea::App> app = std::make_unique<lea::WavesApp>();
     try {
         app->Run();
     }

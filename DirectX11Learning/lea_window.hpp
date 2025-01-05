@@ -30,7 +30,17 @@ namespace lea {
 			KeySpace,
 			KeyLeftMouse,
 			KeyRightMouse,
-			KeyMiddleMouse
+			KeyMiddleMouse,
+			KeyOne,
+			KeyTwo,
+			KeyThree,
+			KeyFour,
+			KeyFive,
+			KeySix,
+			KeySeven,
+			KeyEight,
+			KeyNine,
+			KeyZero
 		} key = KeyUndefined;
 
 		int mouse_x = 0;

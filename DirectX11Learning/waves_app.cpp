@@ -15,51 +15,54 @@ using namespace DirectX;
 
 namespace lea {
 	WavesApp::WavesApp()
-		: App(), mGridIndexCount(0), mTheta(1.5f * XM_PI), mPhi(0.1f * XM_PI), mRadius(200.0f), mWaterTexOffset(0.0f, 0.0f)
+		: App(), mGridIndexCount(0), mTheta(1.5f * XM_PI), mPhi(0.1f * XM_PI), mRadius(200.0f), mWaterTexOffset(0.0f, 0.0f), renderOptions(ERenderTypes::LightAndTexturesAndFog)
 	{
 		m_LastMousePos.first = 0;
 		m_LastMousePos.second = 0;
 
 		XMMATRIX I = XMMatrixIdentity();
 
-		XMStoreFloat4x4(&mGridWorld, I);
-		XMStoreFloat4x4(&mGridWaves, I);
+		XMStoreFloat4x4(&mLandWorld, I);
+		XMStoreFloat4x4(&mWavesWorld, I);
 		XMStoreFloat4x4(&mView, I);
 		XMStoreFloat4x4(&mProj, I);
 		XMStoreFloat4x4(&mWavesTexTransform, I);
+		XMStoreFloat4x4(&mBoxTexTransform, I);
 
 		XMMATRIX wavesOffset = XMMatrixTranslation(0.0f, -3.0f, 0.0f);
-		XMStoreFloat4x4(&mGridWaves, wavesOffset);
+		XMStoreFloat4x4(&mWavesWorld, wavesOffset);
+
+		XMMATRIX boxScale = XMMatrixScaling(15.0f, 15.0f, 15.0f);
+		XMMATRIX boxOffset = XMMatrixTranslation(8.0f, -3.0f, -15.0f);
+		XMStoreFloat4x4(&mBoxWorld, boxScale * boxOffset);
 
 		// Directional light.
-		mDirLight.Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
-		mDirLight.Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-		mDirLight.Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-		mDirLight.Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
+		mDirLights[0].Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+		mDirLights[0].Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		mDirLights[0].Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		mDirLights[0].Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
 
-		// Point light--position is changed every frame to animate in UpdateScene function.
-		mPointLight.Ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
-		mPointLight.Diffuse = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
-		mPointLight.Specular = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
-		mPointLight.Att = XMFLOAT3(0.0f, 0.1f, 0.0f);
-		mPointLight.Range = 25.0f;
+		mDirLights[1].Ambient = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		mDirLights[1].Diffuse = XMFLOAT4(0.20f, 0.20f, 0.20f, 1.0f);
+		mDirLights[1].Specular = XMFLOAT4(0.25f, 0.25f, 0.25f, 1.0f);
+		mDirLights[1].Direction = XMFLOAT3(-0.57735f, -0.57735f, 0.57735f);
 
-		// Spot light--position and direction changed every frame to animate in UpdateScene function.
-		mSpotLight.Ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-		mSpotLight.Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-		mSpotLight.Specular = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-		mSpotLight.Att = XMFLOAT3(1.0f, 0.0f, 0.0f);
-		mSpotLight.Spot = 96.0f;
-		mSpotLight.Range = 10000.0f;
+		mDirLights[2].Ambient = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		mDirLights[2].Diffuse = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+		mDirLights[2].Specular = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		mDirLights[2].Direction = XMFLOAT3(0.0f, -0.707f, -0.707f);
 
-		mLandMat.Ambient = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
-		mLandMat.Diffuse = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
+		mLandMat.Ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		mLandMat.Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 		mLandMat.Specular = XMFLOAT4(0.2f, 0.2f, 0.2f, 16.0f);
 
-		mWavesMat.Ambient = XMFLOAT4(0.137f, 0.42f, 0.556f, 1.0f);
-		mWavesMat.Diffuse = XMFLOAT4(0.137f, 0.42f, 0.556f, 1.0f);
-		mWavesMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 96.0f);
+		mWavesMat.Ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		mWavesMat.Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f);
+		mWavesMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 32.0f);
 
+		mBoxMat.Ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+		mBoxMat.Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+		mBoxMat.Specular = XMFLOAT4(0.4f, 0.4f, 0.4f, 16.0f);
 
 		XMMATRIX grassTexScale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
 		XMStoreFloat4x4(&mGrassTexTransform, grassTexScale);
@@ -74,9 +77,12 @@ namespace lea {
 		CreateInputLayout();
 		BuildLandGeometryBuffers();
 		BuildWavesGeometryBuffers();
+		BuildCommonGeometryBuffers();
 
 		device_.Context()->IASetInputLayout(inputLayout_.Get());
 		device_.Context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		CreateRasterizerStates();
 
 		XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * XM_PI,
 			window_.AspectRatio(), 1.0f, 1000.0f);
@@ -111,15 +117,20 @@ namespace lea {
 				mRadius = std::clamp(mRadius, 50.0f, 500.0f);
 			}
 		}
-		else if (event.type = LeaEvent::TypePressed)
+
+		if (event.type == LeaEvent::TypePressed)
 		{
-			if (event.key == LeaEvent::KeyRight)
+			if (event.key == LeaEvent::KeyOne)
 			{
-				mSpotLight.Spot += 1.0f;
+				renderOptions = ERenderTypes::LightOnly;
 			}
-			else if (event.key == LeaEvent::KeyLeft)
+			if (event.key == LeaEvent::KeyThree)
 			{
-				mSpotLight.Spot -= 1.0f;
+				renderOptions = ERenderTypes::LightAndTexturesAndFog;
+			}
+			if (event.key == LeaEvent::KeyTwo)
+			{
+				renderOptions = ERenderTypes::LightAndTextures;
 			}
 		}
 		m_LastMousePos.first = event.mouse_x;
@@ -179,23 +190,6 @@ namespace lea {
 		}
 
 		device_.Context()->Unmap(wavesVertexBuffer_.Get(), 0);
-
-		//
-		// Animate the lights.
-		//
-
-		// Circle light over the land surface.
-		mPointLight.Position.x = 70.0f * cosf(0.2f * TIMER.TotalTime());
-		mPointLight.Position.z = 70.0f * sinf(0.2f * TIMER.TotalTime());
-		mPointLight.Position.y = MathHelper::Max(GetHeight(mPointLight.Position.x,
-			mPointLight.Position.z), -3.0f) + 10.0f;
-
-
-		// The spotlight takes on the camera position and is aimed in the
-		// same direction the camera is looking.  In this way, it looks
-		// like we are holding a flashlight.
-		mSpotLight.Position = mEyePosW;
-		XMStoreFloat3(&mSpotLight.Direction, XMVector3Normalize(target - pos));
 
 		XMMATRIX wavesScale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
 		mWaterTexOffset.y += 0.05f * deltaTime;
@@ -305,6 +299,53 @@ namespace lea {
 		iinitData.pSysMem = indices.data();
 		DX::ThrowIfFailed(device_.Device()->CreateBuffer(&ibd, &iinitData, wavesIndexBuffer_.GetAddressOf()));
 	}
+	void WavesApp::BuildCommonGeometryBuffers()
+	{
+		using lea::utils::GeometryGenerator;
+
+		GeometryGenerator gen;
+
+		GeometryGenerator::MeshData boxMesh;
+
+		gen.CreateBox(1.f, 1.f, 1.f, boxMesh);
+
+		mBoxIndexCount = boxMesh.Indices.size();
+
+		std::vector<Vertex3> vertices(boxMesh.Vertices.size());
+
+		for (UINT i = 0; i < boxMesh.Vertices.size(); ++i)
+		{
+			vertices[i].pos = boxMesh.Vertices[i].Position;
+			vertices[i].norm = boxMesh.Vertices[i].Normal;
+			vertices[i].tex = boxMesh.Vertices[i].TexC;
+		}
+
+
+		D3D11_BUFFER_DESC vbd{};
+		vbd.Usage = D3D11_USAGE_IMMUTABLE;
+		vbd.ByteWidth = sizeof(Vertex3) * vertices.size();
+		vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vbd.CPUAccessFlags = 0;
+		vbd.MiscFlags = 0;
+		D3D11_SUBRESOURCE_DATA vinitData{};
+		vinitData.pSysMem = vertices.data();
+		DX::ThrowIfFailed(device_.Device()->CreateBuffer(&vbd, &vinitData, commonVertexBuffer_.GetAddressOf()));
+
+		//
+		// Pack the indices of all the meshes into one index buffer.
+		//
+
+		D3D11_BUFFER_DESC ibd{};
+		ibd.Usage = D3D11_USAGE_IMMUTABLE;
+		ibd.ByteWidth = sizeof(UINT) * mBoxIndexCount;
+		ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		ibd.CPUAccessFlags = 0;
+		ibd.MiscFlags = 0;
+		D3D11_SUBRESOURCE_DATA iinitData{};
+		iinitData.pSysMem = boxMesh.Indices.data();
+		DX::ThrowIfFailed(device_.Device()->CreateBuffer(&ibd, &iinitData, commonIndexBuffer_.GetAddressOf()));
+	}
+
 	void WavesApp::CreateInputLayout()
 	{
 		D3D11_INPUT_ELEMENT_DESC inputs[] = {
@@ -314,10 +355,43 @@ namespace lea {
 		};
 
 		D3DX11_PASS_DESC passDesc;
-		effectTechnique_->GetPassByIndex(0)->GetDesc(&passDesc);
+		effectTechniques_.at(ERenderTypes::LightOnly)->GetPassByIndex(0)->GetDesc(&passDesc);
 		DX::ThrowIfFailed(
 			device_.Device()->CreateInputLayout
 			(inputs, ARRAYSIZE(inputs), passDesc.pIAInputSignature, passDesc.IAInputSignatureSize, inputLayout_.GetAddressOf()));
+	}
+
+	void WavesApp::CreateRasterizerStates()
+	{
+		D3D11_RASTERIZER_DESC rastDesc{};
+		rastDesc.FillMode = D3D11_FILL_SOLID;
+		rastDesc.CullMode = D3D11_CULL_NONE;
+		rastDesc.FrontCounterClockwise = false;
+		rastDesc.DepthClipEnable = true;
+		DX::ThrowIfFailed(device_.Device()->CreateRasterizerState(&rastDesc, mNoCullRS.GetAddressOf()));
+
+		D3D11_BLEND_DESC transparentDesc{};
+		transparentDesc.AlphaToCoverageEnable = false;
+		transparentDesc.IndependentBlendEnable = false;
+
+		transparentDesc.RenderTarget[0].BlendEnable = true;
+		transparentDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		transparentDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		transparentDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+		transparentDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+		transparentDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+		transparentDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		transparentDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+		DX::ThrowIfFailed(device_.Device()->CreateBlendState(&transparentDesc, mTransparentBS.GetAddressOf()));
+
+		/*D3D11_DEPTH_STENCIL_DESC desc = {};
+		desc.DepthEnable = true;
+		desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; 
+		desc.DepthFunc = D3D11_COMPARISON_LESS; */
+
+
+		// desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	}
 
 	inline float WavesApp::GetHeight(float x, float z) const
@@ -340,18 +414,24 @@ namespace lea {
 
 	inline void WavesApp::InitFX()
 	{
-		effect_ = device_.CreateEffect(L"waves_textured.fx");
-		effectTechnique_ = effect_->GetTechniqueByName("TextLightTech");
+		effect_ = device_.CreateEffect(L"waves_blended.fx");
+		effectTechniques_ = {
+			{ ERenderTypes::LightOnly, effect_->GetTechniqueByName("Light3")},
+			{ ERenderTypes::LightAndTextures, effect_->GetTechniqueByName("Light3TexAlphaClip")},
+			{ ERenderTypes::LightAndTexturesAndFog, effect_->GetTechniqueByName("Light3TexAlphaClipFog")},
+		};
 
 		mfxWorldViewProj = effect_->GetVariableByName("gWorldProjectView")->AsMatrix();
 		mfxWorld = effect_->GetVariableByName("gWorld")->AsMatrix();
 		mfxWorldInvTranspose = effect_->GetVariableByName("gWorldInverseTranspose")->AsMatrix();
 		mfxEyePosW = effect_->GetVariableByName("gEyePosW")->AsVector();
-		mfxDirLight = effect_->GetVariableByName("gDirLight");
-		mfxPointLight = effect_->GetVariableByName("gPointLight");
-		mfxSpotLight = effect_->GetVariableByName("gSpotLight");
+		mfxFogColor = effect_->GetVariableByName("gFogColor")->AsVector();
+		mfxDirLights = effect_->GetVariableByName("gDirLights");
 		mfxMaterial = effect_->GetVariableByName("gMaterial");
 		mfxTexTransform = effect_->GetVariableByName("gTexTransform")->AsMatrix();
+		mfxFogStart = effect_->GetVariableByName("gFogStart")->AsScalar();
+		mfxFogRange = effect_->GetVariableByName("gFogRange")->AsScalar();
+
 
 		mfxTexture = effect_->GetVariableByName("gDiffuseMap")->AsShaderResource();
 	}
@@ -360,14 +440,17 @@ namespace lea {
 	{
 		grassTexture_ = device_.CreateTexture(L"Textures/grass.dds");
 		wavesTexture_ = device_.CreateTexture(L"Textures/water1.dds");
+		boxTexture_ = device_.CreateTexture(L"Textures/WireFence.dds");
 	}
 
 	void WavesApp::DrawScene()
 	{
 		auto context = device_.Context();
 
-		context->ClearRenderTargetView(device_.RenderTargetView(), reinterpret_cast<const float*>(&Colors::MidnightBlue));
+		context->ClearRenderTargetView(device_.RenderTargetView(), reinterpret_cast<const float*>(&Colors::Silver));
 		context->ClearDepthStencilView(device_.DepthStencilView(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
+
+		float blendFactor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 		UINT strides = sizeof(Vertex3);
 		UINT offset = 0;
@@ -376,23 +459,47 @@ namespace lea {
 		XMMATRIX proj = XMLoadFloat4x4(&mProj);
 		XMMATRIX viewProj = view * proj;
 
-		mfxDirLight->SetRawValue(&mDirLight, 0, sizeof(mDirLight));
-		mfxPointLight->SetRawValue(&mPointLight, 0, sizeof(mPointLight));
-		mfxSpotLight->SetRawValue(&mSpotLight, 0, sizeof(mSpotLight));
+		mfxDirLights->SetRawValue(mDirLights, 0, 3*sizeof(DirectionalLight));
 		mfxEyePosW->SetRawValue(&mEyePosW, 0, sizeof(mEyePosW));
+		mfxFogColor->SetFloatVector(reinterpret_cast<const float*>(&Colors::Silver));
+		mfxFogStart->SetFloat(15.0f);
+		mfxFogRange->SetFloat(175.0f);
+
+		auto& effectTechnique_ = effectTechniques_[renderOptions];
 
 		D3DX11_TECHNIQUE_DESC techDesc;
 		effectTechnique_->GetDesc(&techDesc);
 		for (UINT i = 0; i < techDesc.Passes; ++i)
 		{
+			// Box drawing
+			context->IASetVertexBuffers(0, 1, commonVertexBuffer_.GetAddressOf(), &strides, &offset);
+			context->IASetIndexBuffer(commonIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
+
+			XMMATRIX world = XMLoadFloat4x4(&mBoxWorld);
+			XMMATRIX worldInvTrans = lea::utils::MathHelper::InverseTranspose(world);
+			XMMATRIX worldViewProj = world * viewProj;
+			XMMATRIX texTransform = XMLoadFloat4x4(&mBoxTexTransform);
+
+			mfxWorldViewProj->SetMatrix(reinterpret_cast<const float*>(&worldViewProj));
+			mfxWorld->SetMatrix(reinterpret_cast<const float*>(&world));
+			mfxWorldInvTranspose->SetMatrix(reinterpret_cast<const float*>(&worldInvTrans));
+			mfxMaterial->SetRawValue(&mBoxMat, 0, sizeof(mBoxMat));
+			mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&texTransform));
+			mfxTexture->SetResource(boxTexture_.Get());
+
+			context->RSSetState(mNoCullRS.Get());
+			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
+			context->DrawIndexed(mBoxIndexCount, 0, 0);
+			context->RSSetState(0);
+
 			// grid drawing
 			context->IASetVertexBuffers(0, 1, landVertexBuffer_.GetAddressOf(), &strides, &offset);
 			context->IASetIndexBuffer(landIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
 
-			XMMATRIX world = XMLoadFloat4x4(&mGridWorld);
-			XMMATRIX worldInvTrans = lea::utils::MathHelper::InverseTranspose(world);
-			XMMATRIX worldViewProj = world * viewProj;
-			XMMATRIX texTransform = XMLoadFloat4x4(&mGrassTexTransform);
+			world = XMLoadFloat4x4(&mLandWorld);
+			worldInvTrans = lea::utils::MathHelper::InverseTranspose(world);
+			worldViewProj = world * viewProj;
+			texTransform = XMLoadFloat4x4(&mGrassTexTransform);
 
 			mfxWorldViewProj->SetMatrix(reinterpret_cast<const float*>(&worldViewProj));
 			mfxWorld->SetMatrix(reinterpret_cast<const float*>(&world));
@@ -408,7 +515,7 @@ namespace lea {
 			context->IASetVertexBuffers(0, 1, wavesVertexBuffer_.GetAddressOf(), &strides, &offset);
 			context->IASetIndexBuffer(wavesIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
 
-			world = XMLoadFloat4x4(&mGridWaves);
+			world = XMLoadFloat4x4(&mWavesWorld);
 			worldInvTrans = lea::utils::MathHelper::InverseTranspose(world);
 			worldViewProj = world * viewProj;
 			mfxWorldViewProj->SetMatrix(reinterpret_cast<const float*>(&worldViewProj));
@@ -419,8 +526,11 @@ namespace lea {
 			mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&texTransform));
 			mfxTexture->SetResource(wavesTexture_.Get());
 			
+			context->OMSetBlendState(mTransparentBS.Get(), blendFactor, 0xFFFFFFFF);
 			effectTechnique_->GetPassByIndex(i)->Apply(0, context);
 			context->DrawIndexed(3*waves.TriangleCount(), 0, 0);
+			context->OMSetBlendState(0, blendFactor, 0xFFFFFFFF);
+
 		}
 
 		DX::ThrowIfFailed(device_.SwapChain()->Present(0, 0));
